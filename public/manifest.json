@@ -1,13 +1,13 @@
 {
-  "name": "Hyderabad Desk — Leads & News",
+  "name": "Hyderabad Desk: Leads & News",
   "short_name": "Hyd Desk",
   "description": "Mobile-first lead pipeline, project inventory and market news for a Hyderabad real-estate agent.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#1a1a1a",
+  "background_color": "#f6f6f5",
+  "theme_color": "#16161a",
   "icons": [
     {
       "src": "./icon-192.png",
