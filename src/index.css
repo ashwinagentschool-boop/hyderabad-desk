@@ -1,0 +1,236 @@
+@import 'tailwindcss';
+
+/* ==================================================================
+   Design tokens
+   Flat, minimal, hairline-bordered. Every token has a dark-mode value;
+   dark mode follows the OS via prefers-color-scheme only.
+   ================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  --c-bg: #f7f7f7;
+  --c-surface: #ffffff;
+  --c-surface-sunken: #f2f2f2;
+  --c-border: #e5e5e5;
+  --c-border-strong: #d4d4d4;
+  --c-text: #1a1a1a;
+  /* Both secondary tiers clear WCAG AA (4.5:1) on white and on the coral
+     overdue card — timestamps and meta are content, not decoration. */
+  --c-text-muted: #5f5f5f;
+  --c-text-faint: #737373;
+  --c-accent: #1a1a1a;
+  --c-accent-text: #ffffff;
+  --c-focus: #2563eb;
+
+  /* Source badges */
+  --c-reddit-bg: #faece7;
+  --c-reddit-text: #712b13;
+  --c-manual-bg: #eeedfe;
+  --c-manual-text: #3c3489;
+  --c-teal-bg: #e1f5ee;
+  --c-teal-text: #085041;
+
+  /* Status pills */
+  --c-new-bg: #e7f0fd;
+  --c-new-text: #1c3f7d;
+  --c-amber-bg: #fcf0dc;
+  --c-amber-text: #6a4310;
+  --c-green-bg: #e2f5e5;
+  --c-green-text: #14532d;
+  --c-gray-bg: #efefef;
+  --c-gray-text: #4a4a4a;
+  --c-red-bg: #fce8e6;
+  --c-red-text: #7a211a;
+
+  /* Overdue follow-up cards */
+  --c-overdue-bg: #fff3ed;
+  --c-overdue-border: #f2d3c4;
+
+  /* System status dots */
+  --c-ok: #16a34a;
+  --c-err: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-bg: #0e0e0e;
+    --c-surface: #171717;
+    --c-surface-sunken: #202020;
+    --c-border: #2c2c2c;
+    --c-border-strong: #3d3d3d;
+    --c-text: #ededed;
+    --c-text-muted: #a8a8a8;
+    --c-text-faint: #8f8f8f;
+    --c-accent: #ededed;
+    --c-accent-text: #171717;
+    --c-focus: #60a5fa;
+
+    --c-reddit-bg: #3a1c11;
+    --c-reddit-text: #f2bda4;
+    --c-manual-bg: #201d3d;
+    --c-manual-text: #c0baf5;
+    --c-teal-bg: #0c2c24;
+    --c-teal-text: #94ddc6;
+
+    --c-new-bg: #14243f;
+    --c-new-text: #a8c6f4;
+    --c-amber-bg: #362810;
+    --c-amber-text: #efc78a;
+    --c-green-bg: #12301c;
+    --c-green-text: #9adba6;
+    --c-gray-bg: #292929;
+    --c-gray-text: #a8a8a8;
+    --c-red-bg: #3a1614;
+    --c-red-text: #f0aba4;
+
+    --c-overdue-bg: #2b1710;
+    --c-overdue-border: #4d2b1c;
+
+    --c-ok: #4ade80;
+    --c-err: #f87171;
+  }
+}
+
+/* Expose tokens as Tailwind color utilities (bg-surface, text-muted, …) */
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-sunken: var(--c-surface-sunken);
+  --color-hairline: var(--c-border);
+  --color-hairline-strong: var(--c-border-strong);
+  --color-ink: var(--c-text);
+  --color-muted: var(--c-text-muted);
+  --color-faint: var(--c-text-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-text);
+
+  --color-reddit-bg: var(--c-reddit-bg);
+  --color-reddit-ink: var(--c-reddit-text);
+  --color-manual-bg: var(--c-manual-bg);
+  --color-manual-ink: var(--c-manual-text);
+  --color-teal-bg: var(--c-teal-bg);
+  --color-teal-ink: var(--c-teal-text);
+
+  --color-overdue-bg: var(--c-overdue-bg);
+  --color-overdue-border: var(--c-overdue-border);
+
+  --color-ok: var(--c-ok);
+  --color-err: var(--c-err);
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
+/* ==================================================================
+   Base
+   ================================================================== */
+
+/* These MUST live in @layer base. Unlayered rules outrank every Tailwind
+   utility, so an unlayered `button { color: inherit }` would silently beat
+   `text-accent-ink` and paint button labels the wrong colour. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* Belt and braces: the document must never scroll sideways, whatever a
+       single card or chip row does. Only the tab strip scrolls. */
+    overflow-x: hidden;
+  }
+
+  body {
+    margin: 0;
+    background: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    /* The page itself never scrolls sideways — only the tab strip does. */
+    overflow-x: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
+  }
+}
+
+/* ==================================================================
+   Primitives
+   ================================================================== */
+
+/* True 0.5px hairline where the display can render it. */
+@utility hairline {
+  border: 0.5px solid var(--c-border);
+}
+
+@utility hairline-t {
+  border-top: 0.5px solid var(--c-border);
+}
+
+@utility hairline-b {
+  border-bottom: 0.5px solid var(--c-border);
+}
+
+/* Horizontal scroller with no visible scrollbar (tab strip, chip rows). */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Minimum comfortable tap target on touch devices. */
+@utility tap {
+  min-height: 44px;
+}
+
+@keyframes hrd-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility fade-in {
+  animation: hrd-fade-in 140ms ease-out;
+}
+
+@keyframes hrd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility spin-slow {
+  animation: hrd-spin 700ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
