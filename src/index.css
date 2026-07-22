@@ -1,153 +1,181 @@
 @import 'tailwindcss';
 
+/* Self-hosted variable fonts. Never a Google Fonts <link> in production.
+   Geist for UI, Geist Mono for every number the agent has to read fast. */
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
 /* ==================================================================
-   Design tokens
-   Flat, minimal, hairline-bordered. Every token has a dark-mode value;
-   dark mode follows the OS via prefers-color-scheme only.
+   HYDERABAD DESK — DESIGN SYSTEM
+
+   Read: operator dashboard, used one-handed, in sunlight, between site
+   visits. Not a landing page.
+     DESIGN_VARIANCE  4   scannability beats surprise
+     MOTION_INTENSITY 3   transitions and press states only
+     VISUAL_DENSITY   6   data-dense but readable at 375px
+
+   COLOR LAW: the interface is achromatic. Hue is reserved exclusively
+   for meaning (lead status, source provenance, health). Nothing is
+   coloured for decoration. This is the whole colour system.
+
+   SHAPE LAW: three radii, no exceptions.
+     surfaces  14px   cards, sheets, panels
+     controls  10px   buttons, inputs, selects
+     pills     full   chips, badges, status
    ================================================================== */
 
 :root {
   color-scheme: light dark;
 
-  --c-bg: #f7f7f7;
+  /* --- Achromatic ramp. Slightly warm so it doesn't read as clinical. */
+  --c-bg: #f6f6f5;
   --c-surface: #ffffff;
-  --c-surface-sunken: #f2f2f2;
-  --c-border: #e5e5e5;
-  --c-border-strong: #d4d4d4;
-  --c-text: #1a1a1a;
-  /* Both secondary tiers clear WCAG AA (4.5:1) on white and on the coral
-     overdue card — timestamps and meta are content, not decoration. */
-  --c-text-muted: #5f5f5f;
-  --c-text-faint: #737373;
-  --c-accent: #1a1a1a;
-  --c-accent-text: #ffffff;
-  --c-focus: #2563eb;
+  --c-surface-sunken: #f0f0ef;
+  --c-border: #e4e4e1;
+  --c-border-strong: #cfcfcb;
+  --c-ink: #16161a;
+  /* Both secondary tiers clear WCAG AA on white, on the sunken surface,
+     AND on the coral overdue card. Timestamps are content, not chrome. */
+  --c-ink-muted: #5c5c63;
+  --c-ink-faint: #6e6e73;
+  --c-accent: #16161a;
+  --c-accent-ink: #ffffff;
+  --c-focus: #2f6fed;
 
-  /* Source badges */
+  /* --- Provenance (where a record came from) */
   --c-reddit-bg: #faece7;
-  --c-reddit-text: #712b13;
+  --c-reddit-ink: #712b13;
   --c-manual-bg: #eeedfe;
-  --c-manual-text: #3c3489;
+  --c-manual-ink: #3c3489;
   --c-teal-bg: #e1f5ee;
-  --c-teal-text: #085041;
+  --c-teal-ink: #085041;
 
-  /* Status pills */
+  /* --- Pipeline status */
   --c-new-bg: #e7f0fd;
-  --c-new-text: #1c3f7d;
+  --c-new-ink: #1c3f7d;
   --c-amber-bg: #fcf0dc;
-  --c-amber-text: #6a4310;
+  --c-amber-ink: #6a4310;
   --c-green-bg: #e2f5e5;
-  --c-green-text: #14532d;
-  --c-gray-bg: #efefef;
-  --c-gray-text: #4a4a4a;
+  --c-green-ink: #14532d;
+  --c-gray-bg: #ebebe9;
+  --c-gray-ink: #4a4a50;
   --c-red-bg: #fce8e6;
-  --c-red-text: #7a211a;
+  --c-red-ink: #7a211a;
 
-  /* Overdue follow-up cards */
-  --c-overdue-bg: #fff3ed;
-  --c-overdue-border: #f2d3c4;
+  /* --- Attention: overdue follow-ups */
+  --c-overdue-bg: #fff4ef;
+  --c-overdue-border: #f0cfbf;
+  /* Darkened from the obvious coral so the "Overdue since" line clears
+     4.5:1 against the card it sits on. */
+  --c-overdue-rule: #b34e30;
 
-  /* System status dots */
-  --c-ok: #16a34a;
-  --c-err: #dc2626;
+  /* --- Health */
+  --c-ok: #15803d;
+  --c-err: #c2321f;
+
+  /* --- Elevation. Tinted to the background hue, never pure black. */
+  --shadow-sheet: 0 24px 60px -20px rgb(28 26 22 / 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --c-bg: #0e0e0e;
-    --c-surface: #171717;
-    --c-surface-sunken: #202020;
-    --c-border: #2c2c2c;
-    --c-border-strong: #3d3d3d;
-    --c-text: #ededed;
-    --c-text-muted: #a8a8a8;
-    --c-text-faint: #8f8f8f;
-    --c-accent: #ededed;
-    --c-accent-text: #171717;
-    --c-focus: #60a5fa;
+    --c-bg: #0c0c0d;
+    --c-surface: #151517;
+    --c-surface-sunken: #1d1d20;
+    --c-border: #2a2a2e;
+    --c-border-strong: #3c3c42;
+    --c-ink: #ededee;
+    --c-ink-muted: #a5a5ac;
+    --c-ink-faint: #8b8b93;
+    --c-accent: #ededee;
+    --c-accent-ink: #151517;
+    --c-focus: #6ea0ff;
 
     --c-reddit-bg: #3a1c11;
-    --c-reddit-text: #f2bda4;
+    --c-reddit-ink: #f2bda4;
     --c-manual-bg: #201d3d;
-    --c-manual-text: #c0baf5;
+    --c-manual-ink: #c0baf5;
     --c-teal-bg: #0c2c24;
-    --c-teal-text: #94ddc6;
+    --c-teal-ink: #94ddc6;
 
     --c-new-bg: #14243f;
-    --c-new-text: #a8c6f4;
+    --c-new-ink: #a8c6f4;
     --c-amber-bg: #362810;
-    --c-amber-text: #efc78a;
+    --c-amber-ink: #efc78a;
     --c-green-bg: #12301c;
-    --c-green-text: #9adba6;
-    --c-gray-bg: #292929;
-    --c-gray-text: #a8a8a8;
+    --c-green-ink: #9adba6;
+    --c-gray-bg: #26262a;
+    --c-gray-ink: #a8a8b0;
     --c-red-bg: #3a1614;
-    --c-red-text: #f0aba4;
+    --c-red-ink: #f0aba4;
 
-    --c-overdue-bg: #2b1710;
-    --c-overdue-border: #4d2b1c;
+    --c-overdue-bg: #2a1712;
+    --c-overdue-border: #4a291d;
+    --c-overdue-rule: #e08a68;
 
     --c-ok: #4ade80;
     --c-err: #f87171;
+
+    --shadow-sheet: 0 24px 60px -20px rgb(0 0 0 / 0.7);
   }
 }
 
-/* Expose tokens as Tailwind color utilities (bg-surface, text-muted, …) */
 @theme inline {
   --color-bg: var(--c-bg);
   --color-surface: var(--c-surface);
   --color-sunken: var(--c-surface-sunken);
   --color-hairline: var(--c-border);
   --color-hairline-strong: var(--c-border-strong);
-  --color-ink: var(--c-text);
-  --color-muted: var(--c-text-muted);
-  --color-faint: var(--c-text-faint);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-ink-muted);
+  --color-faint: var(--c-ink-faint);
   --color-accent: var(--c-accent);
-  --color-accent-ink: var(--c-accent-text);
+  --color-accent-ink: var(--c-accent-ink);
 
   --color-reddit-bg: var(--c-reddit-bg);
-  --color-reddit-ink: var(--c-reddit-text);
+  --color-reddit-ink: var(--c-reddit-ink);
   --color-manual-bg: var(--c-manual-bg);
-  --color-manual-ink: var(--c-manual-text);
+  --color-manual-ink: var(--c-manual-ink);
   --color-teal-bg: var(--c-teal-bg);
-  --color-teal-ink: var(--c-teal-text);
+  --color-teal-ink: var(--c-teal-ink);
 
   --color-overdue-bg: var(--c-overdue-bg);
   --color-overdue-border: var(--c-overdue-border);
+  --color-overdue-rule: var(--c-overdue-rule);
 
   --color-ok: var(--c-ok);
   --color-err: var(--c-err);
 
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+  --font-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --radius-surface: 14px;
+  --radius-control: 10px;
 }
 
 /* ==================================================================
-   Base
+   Base. MUST stay inside @layer base: unlayered rules outrank every
+   Tailwind utility, so a bare `button { color: inherit }` silently
+   beats `text-accent-ink` and paints button labels the wrong colour.
    ================================================================== */
 
-/* These MUST live in @layer base. Unlayered rules outrank every Tailwind
-   utility, so an unlayered `button { color: inherit }` would silently beat
-   `text-accent-ink` and paint button labels the wrong colour. */
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
-    /* Belt and braces: the document must never scroll sideways, whatever a
-       single card or chip row does. Only the tab strip scrolls. */
+    /* The document never scrolls sideways. Only the tab strip does. */
     overflow-x: hidden;
   }
 
   body {
     margin: 0;
     background: var(--c-bg);
-    color: var(--c-text);
+    color: var(--c-ink);
     font-family: var(--font-sans);
     font-size: 15px;
     line-height: 1.5;
     font-weight: 400;
+    font-feature-settings: 'cv11' 1; /* disambiguated l / 1 / I */
     -webkit-font-smoothing: antialiased;
-    /* The page itself never scrolls sideways — only the tab strip does. */
     overflow-x: hidden;
   }
 
@@ -166,6 +194,15 @@
   :focus-visible {
     outline: 2px solid var(--c-focus);
     outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Money, counts, dates and times are read at a glance and compared
+     down a column. They get lining tabular figures. */
+  .num {
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -173,20 +210,18 @@
    Primitives
    ================================================================== */
 
-/* True 0.5px hairline where the display can render it. */
 @utility hairline {
-  border: 0.5px solid var(--c-border);
+  border: 1px solid var(--c-border);
 }
 
 @utility hairline-t {
-  border-top: 0.5px solid var(--c-border);
+  border-top: 1px solid var(--c-border);
 }
 
 @utility hairline-b {
-  border-bottom: 0.5px solid var(--c-border);
+  border-bottom: 1px solid var(--c-border);
 }
 
-/* Horizontal scroller with no visible scrollbar (tab strip, chip rows). */
 @utility no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -195,15 +230,23 @@
   }
 }
 
-/* Minimum comfortable tap target on touch devices. */
 @utility tap {
   min-height: 44px;
 }
 
-@keyframes hrd-fade-in {
+/* Section label. Used at most once per screen, never as a rhythm device. */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-ink-faint);
+}
+
+@keyframes hrd-rise {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -211,8 +254,8 @@
   }
 }
 
-@utility fade-in {
-  animation: hrd-fade-in 140ms ease-out;
+@utility rise {
+  animation: hrd-rise 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes hrd-spin {
@@ -223,6 +266,21 @@
 
 @utility spin-slow {
   animation: hrd-spin 700ms linear infinite;
+}
+
+/* Skeletons match the shape of what is loading, never a spinner. */
+@keyframes hrd-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@utility pulse-soft {
+  animation: hrd-pulse 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

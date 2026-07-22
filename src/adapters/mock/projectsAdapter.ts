@@ -122,7 +122,7 @@ const PROJECTS: Project[] = [
     sqftRange: '1450 - 1790 sqft',
     possession: 'Ready to move',
     rera: false,
-    notes: 'RERA registration lapsed on phase 2 — verify before showing to clients.',
+    notes: 'RERA registration lapsed on phase 2. Verify before showing to clients.',
   },
   {
     id: 'pj_10',

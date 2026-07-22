@@ -3,10 +3,13 @@ import { Icon } from '../components/Icon';
 import { Button, Spinner, TextField } from '../components/ui';
 import { useStore } from '../store';
 
+// Each label must fit one line at 375px. A chip that wraps inside its own
+// pill reads as broken, and "Compare two projects" still routes to the
+// compare branch, which answers by listing what is available to compare.
 const SUGGESTIONS = [
   'Ready to move projects',
-  'Compare Sattva Lakeridge and Vertex Panache',
-  'Which leads match Kokapet projects?',
+  'Compare two projects',
+  'Which leads match Kokapet?',
 ];
 
 export function ChatTab() {
@@ -85,9 +88,9 @@ export function ChatTab() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`fade-in max-w-[85%] rounded-[12px] px-3.5 py-2.5 text-[14px] leading-[1.55] whitespace-pre-wrap ${
+                  className={`rise max-w-[85%] rounded-[12px] px-3.5 py-2.5 text-[14px] leading-[1.55] whitespace-pre-wrap ${
                     message.role === 'user'
-                      ? 'bg-[var(--c-new-bg)] text-[var(--c-new-text)]'
+                      ? 'bg-[var(--c-new-bg)] text-[var(--c-new-ink)]'
                       : 'bg-surface hairline'
                   }`}
                 >

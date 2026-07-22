@@ -61,7 +61,7 @@ export function TwitterTab() {
         }
       />
 
-      <Notice>Best-effort results — not a live timeline.</Notice>
+      <Notice>Best-effort results, not a live timeline.</Notice>
 
       <Collapsible title="Handles watched">
         {settings === null ? (
@@ -98,7 +98,7 @@ export function TwitterTab() {
       ) : (
         <CardGrid>
           {tweets.items.map((tweet) => (
-            <Card key={tweet.id} className="fade-in flex flex-col gap-2">
+            <Card key={tweet.id} className="rise flex flex-col gap-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-[14px] font-medium">{tweet.handle}</span>
                 <span className="text-faint shrink-0 text-[12px]">

@@ -100,7 +100,7 @@ function NewsCard({ item }: { item: NewsItem }) {
   };
 
   return (
-    <Card className="fade-in flex flex-col gap-2">
+    <Card className="rise flex flex-col gap-2">
       <h2 className="text-[14.5px] leading-[1.45] font-medium">{item.headline}</h2>
 
       <p className="text-muted text-[13px]">

@@ -15,16 +15,19 @@ const SOURCE_LABEL: Record<SourceName, string> = {
 
 const ORDER: SourceName[] = ['reddit', 'sheet', 'news', 'twitter', 'insta'];
 
-/** True when every source reported ok on its last run. */
 export function allHealthy(statuses: SourceStatus[]): boolean {
   return statuses.length > 0 && statuses.every((s) => s.status === 'ok');
 }
 
+/**
+ * The one dot in the design system that is allowed to carry colour, because
+ * it reports real state: whether the worker on the Pi last succeeded.
+ */
 export function StatusDot({ healthy }: { healthy: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className="inline-block size-[7px] rounded-full"
+      className="inline-block size-[6px] shrink-0 rounded-full"
       style={{ background: healthy ? 'var(--c-ok)' : 'var(--c-err)' }}
     />
   );
@@ -32,7 +35,7 @@ export function StatusDot({ healthy }: { healthy: boolean }) {
 
 /**
  * Collapsible per-source heartbeat, reachable from the header on every tab.
- * Reads the statusAdapter, which will later be the Pi's `fetch_logs` table.
+ * Reads statusAdapter, which will later be the Pi's fetch_logs table.
  */
 export function StatusStrip() {
   const open = useStore((s) => s.statusStripOpen);
@@ -48,31 +51,34 @@ export function StatusStrip() {
   const bySource = new Map(statuses.items.map((s) => [s.source, s]));
 
   return (
-    <div className="hairline-t bg-sunken px-4 py-3">
+    <div className="hairline-t bg-sunken rise px-4 py-3">
       {statuses.status === 'loading' && statuses.items.length === 0 ? (
         <p className="text-muted flex items-center gap-2 text-[13px]">
-          <Spinner /> Checking sources…
+          <Spinner /> Checking sources
         </p>
       ) : statuses.status === 'error' && statuses.items.length === 0 ? (
         <p className="text-muted text-[13px]">Couldn't read the source heartbeat.</p>
       ) : (
-        <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mx-auto grid max-w-[1180px] gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {ORDER.map((source) => {
             const entry = bySource.get(source);
+            const ok = entry?.status === 'ok';
             return (
-              <li key={source} className="flex items-center gap-2 text-[13px]">
-                <StatusDot healthy={entry?.status === 'ok'} />
-                <span className="font-medium">{SOURCE_LABEL[source]}</span>
-                <span className="text-muted truncate">
+              <li key={source} className="flex items-baseline gap-2 text-[13px]">
+                <span className="translate-y-[-2px]">
+                  <StatusDot healthy={ok} />
+                </span>
+                <span className="shrink-0 font-medium">{SOURCE_LABEL[source]}</span>
+                <span className="text-muted truncate text-[12.5px]">
                   {entry === undefined
                     ? 'never run'
-                    : entry.status === 'ok'
-                      ? `synced ${relativeTime(entry.ranAt)}${
-                          entry.itemsCount !== undefined ? ` · ${entry.itemsCount} items` : ''
+                    : ok
+                      ? `${relativeTime(entry.ranAt)}${
+                          entry.itemsCount !== undefined
+                            ? `, ${entry.itemsCount} items`
+                            : ''
                         }`
-                      : `failed ${relativeTime(entry.ranAt)}${
-                          entry.message !== undefined ? ` · ${entry.message}` : ''
-                        }`}
+                      : `failed ${relativeTime(entry.ranAt)}`}
                 </span>
               </li>
             );
@@ -83,7 +89,7 @@ export function StatusStrip() {
   );
 }
 
-/** Compact "Reddit synced 12m ago" line used inside individual tabs. */
+/** Compact "synced 12m ago" line used inside individual tabs. */
 export function SourceStatusLine({ source }: { source: SourceName }) {
   const statuses = useStore((s) => s.statuses);
   const loadStatuses = useStore((s) => s.loadStatuses);
@@ -95,12 +101,15 @@ export function SourceStatusLine({ source }: { source: SourceName }) {
   const entry = statuses.items.find((s) => s.source === source);
   if (entry === undefined) return <span className="text-faint">never synced</span>;
 
+  // Prose, not a column of comparable values, so no mono here.
   return (
     <span className="text-muted inline-flex items-center gap-1.5">
       <StatusDot healthy={entry.status === 'ok'} />
-      {entry.status === 'ok'
-        ? `synced ${relativeTime(entry.ranAt)}`
-        : `failed ${relativeTime(entry.ranAt)}`}
+      <span>
+        {entry.status === 'ok'
+          ? `synced ${relativeTime(entry.ranAt)}`
+          : `failed ${relativeTime(entry.ranAt)}`}
+      </span>
     </span>
   );
 }
@@ -117,18 +126,27 @@ export function StatusToggle() {
   }, [loadStatuses]);
 
   const healthy = allHealthy(statuses.items);
+  const failing = statuses.items.filter((s) => s.status === 'error').length;
 
   return (
     <button
       type="button"
       onClick={toggle}
       aria-expanded={open}
-      aria-label={`System status — ${healthy ? 'all sources ok' : 'a source needs attention'}`}
-      className="text-muted -mr-2 flex h-11 items-center gap-1.5 rounded-[9px] px-2 text-[12.5px] font-medium"
+      aria-label={
+        healthy
+          ? 'System status, all sources ok'
+          : `System status, ${failing} source needs attention`
+      }
+      className="text-muted hover:text-ink hover:bg-sunken -mr-2 flex h-9 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium transition-colors"
     >
       <StatusDot healthy={healthy} />
-      <span className="hidden sm:inline">System</span>
-      <Icon name="chevron-down" size={11} className={open ? 'rotate-180' : ''} />
+      <span>{healthy ? 'All sources ok' : `${failing} source failing`}</span>
+      <Icon
+        name="chevron-down"
+        size={11}
+        className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+      />
     </button>
   );
 }

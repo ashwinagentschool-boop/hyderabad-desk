@@ -72,6 +72,86 @@ client.
 Otherwise the coral overdue card — a specified design element — would never
 appear on a fresh install.
 
+## Design system rewrite (taste-skill pass)
+
+The visual layer was rebuilt against the `design-taste-frontend` skill.
+Adapters, store, types and data models were not touched, so the backend
+contract in NEXT.md still holds exactly.
+
+**The skill puts dashboards out of scope, and I followed its own instruction
+for that case.** Section 13 says landing pages and portfolios, not dashboards,
+and tells the agent to say so and apply only the parts that fit. So the
+typography, colour, materiality, interactive-state, accessibility, dark-mode
+and anti-tell rules were applied in full. The landing-page furniture was not:
+no hero, no bento grid, no marquee, no scroll hijack, no logo wall. An agent
+checking overdue follow-ups between site visits does not need a scroll-pinned
+hero, and Section 4.8's "even minimalist sites need real images" is a rule
+about marketing pages, not a lead pipeline.
+
+**Dials: `DESIGN_VARIANCE 4` / `MOTION_INTENSITY 3` / `VISUAL_DENSITY 6`.**
+Reasoned from the read, not the 8/6/4 baseline. Low variance because
+scannability beats surprise when the same screen is opened forty times a day.
+Low motion because the skill's own guidance is to drop the dial and ship a
+clean static page rather than half-build animation; transitions and press
+states are the whole motion budget. Density 6 because the content is dense but
+has to survive 375px.
+
+**Colour law: the interface is achromatic, hue means something.**
+Provenance badges (Reddit coral, Manual purple, Sheet teal), status pills and
+the health dot carry the only colour in the app. Nothing is tinted for
+decoration. This satisfies the Color Consistency Lock in a way a fourth
+"brand accent" hue would not, and it is the right call for an operator tool:
+if the agent sees colour, it means something.
+
+**Typography: Geist + Geist Mono, self-hosted via `@fontsource-variable`.**
+The skill discourages Inter as a default and bans linking Google Fonts in
+production. Mono is applied only to values the agent compares down a column:
+money, phone numbers, sqft ranges, counts. It is deliberately NOT applied to
+relative times like "39m ago", where monospacing the word "ago" just stretches
+prose. Tabular figures (`font-feature-settings: 'tnum'`) make prices align
+across cards in the desktop grid.
+
+**Shape law: three radii, documented and enforced.** Surfaces 14px, controls
+10px, pills full. The previous build had a stray 4-value scale (9/11/12/full),
+which the Shape Consistency Lock treats as broken.
+
+**Icons: Phosphor, replacing 14 hand-rolled SVG paths.** Section 3.C bans
+hand-rolled icon paths outright. One family, one weight, one wrapper component
+with an unchanged call signature.
+
+**Zero em-dashes.** Section 9.G is a binary ban and it was the single most
+violated rule in the previous build (55 instances). All visible copy was
+rewritten. The one surviving en-dash is inside a regex character class in
+`chatAdapter`, which parses budget ranges the agent may have typed by hand; it
+is never rendered. Rewriting copy mechanically introduced one broken sentence
+("has nothing in Kokapet lands inside that budget"), caught by the skill's
+Copy Self-Audit and fixed.
+
+**The header is opaque, not frosted.** It was briefly `bg-bg/85` with
+`backdrop-blur`. Section 5 calls glassmorphism inappropriate for dashboards,
+and it is: it puts moving content behind small labels read in sunlight.
+
+**Desktop header collapses to one row at 960px.** Brand, tabs and health share
+a 61px bar, under the skill's 80px nav cap. Below 960px it stacks into two
+rows, because eight tabs plus a brand plus a status label do not fit.
+
+**Separators were removed from the lead card meta row.** At 375px that row
+wraps, and a trailing middle-dot orphaned at the end of a line reads as a bug.
+Weight and colour carry the hierarchy instead, which also reduces middle-dot
+usage the skill rations.
+
+**Chat suggestion chips were shortened.** "Compare Sattva Lakeridge and Vertex
+Panache" wrapped to two lines inside its own pill, which the CTA Button Wrap
+Ban treats as a fail. "Compare two projects" fits one line and still routes to
+the compare branch, which answers by listing what is available to compare.
+
+**Contrast was measured, not eyeballed.** Every text/background pair on every
+tab was computed in both themes. Three real failures were found and fixed: the
+faint tier failed on the coral overdue card (4.36:1), the overdue rule colour
+failed against the card it sits on (4.15:1, darkened to `#b34e30`), and the
+translucent header made header text unmeasurable. Two reported failures were
+false positives from `oklab` alpha compositing and from measuring mid-transition.
+
 ## Design
 
 **Base CSS lives in `@layer base`.**

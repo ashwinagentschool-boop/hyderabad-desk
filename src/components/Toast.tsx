@@ -33,9 +33,9 @@ export function ToastHost() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-5 z-[60] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4"
     >
-      <div className="fade-in bg-accent text-accent-ink max-w-full truncate rounded-full px-4 py-2 text-[13px] font-medium">
+      <div className="rise bg-accent text-accent-ink max-w-full truncate rounded-full px-4 py-2.5 text-[13px] font-medium shadow-[var(--shadow-sheet)]">
         {message}
       </div>
     </div>

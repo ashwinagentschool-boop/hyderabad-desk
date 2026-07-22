@@ -2,12 +2,37 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 
 /* ------------------------------------------------------------------ *
- * Card
+ * Layout shells
+ * ------------------------------------------------------------------ */
+
+/**
+ * Root wrapper for every tab. The explicit `minmax(0, 1fr)` column is
+ * load-bearing: with an implicit track, a full-bleed child like ChipRow
+ * widens the track and the whole page gains a horizontal scrollbar.
+ */
+export function TabShell({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-[minmax(0,1fr)] gap-5">{children}</div>;
+}
+
+/**
+ * Single full-width column on mobile; auto-fitting grid from 700px up.
+ * `minmax(0,1fr)` on the mobile column for the same reason as above.
+ */
+export function CardGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 min-[700px]:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Card — 14px surface radius (shape law)
  * ------------------------------------------------------------------ */
 
 interface CardProps {
   children: React.ReactNode;
-  /** Overdue follow-ups get the warm coral treatment. */
+  /** Overdue follow-ups get the warm attention treatment. */
   tone?: 'default' | 'overdue';
   className?: string;
   onClick?: () => void;
@@ -16,14 +41,14 @@ interface CardProps {
 export function Card({ children, tone = 'default', className = '', onClick }: CardProps) {
   const toneClass =
     tone === 'overdue'
-      ? 'bg-overdue-bg border-[0.5px] border-overdue-border'
+      ? 'bg-overdue-bg border border-overdue-border'
       : 'bg-surface hairline';
   const interactive = onClick !== undefined;
 
   return (
     <div
-      className={`rounded-[11px] p-3.5 ${toneClass} ${
-        interactive ? 'cursor-pointer active:opacity-80' : ''
+      className={`rounded-[14px] p-4 transition-colors duration-150 ${toneClass} ${
+        interactive ? 'cursor-pointer active:scale-[0.995]' : ''
       } ${className}`}
       {...(interactive
         ? {
@@ -44,31 +69,8 @@ export function Card({ children, tone = 'default', className = '', onClick }: Ca
   );
 }
 
-/**
- * Root wrapper for every tab. The explicit `minmax(0, 1fr)` column is
- * load-bearing: with an implicit track, a full-bleed child like ChipRow
- * widens the track and the whole page gains a horizontal scrollbar.
- */
-export function TabShell({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-[minmax(0,1fr)] gap-4">{children}</div>;
-}
-
-/**
- * Single full-width column on mobile; auto-fitting card grid from 700px up.
- */
-export function CardGrid({ children }: { children: React.ReactNode }) {
-  return (
-    // `minmax(0, 1fr)` on the mobile column, not just `grid`: an implicit
-    // track grows to the widest card's min-content and pushes cards past the
-    // screen edge. The 700px grid already uses minmax for the same reason.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 min-[700px]:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
-      {children}
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ *
- * Buttons
+ * Buttons — 10px control radius, tactile press
  * ------------------------------------------------------------------ */
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -80,10 +82,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-accent-ink border-[0.5px] border-transparent',
-  secondary: 'bg-surface text-ink hairline',
-  ghost: 'bg-transparent text-muted border-[0.5px] border-transparent',
-  danger: 'bg-[var(--c-red-bg)] text-[var(--c-red-text)] border-[0.5px] border-transparent',
+  primary: 'bg-accent text-accent-ink border border-transparent hover:opacity-90',
+  secondary: 'bg-surface text-ink hairline hover:border-hairline-strong',
+  ghost: 'bg-transparent text-muted border border-transparent hover:text-ink',
+  danger:
+    'bg-[var(--c-red-bg)] text-[var(--c-red-ink)] border border-transparent hover:opacity-90',
 };
 
 export function Button({
@@ -96,14 +99,12 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const sizing =
-    size === 'sm'
-      ? 'min-h-[34px] px-3 text-[13px]'
-      : 'min-h-[44px] px-4 text-[14px]';
+    size === 'sm' ? 'min-h-[36px] px-3 text-[13px]' : 'min-h-[44px] px-4 text-[14px]';
   return (
     <button
       type="button"
       disabled={disabled === true || busy}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-[9px] font-medium ${sizing} ${VARIANT[variant]} disabled:opacity-45 ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-[10px] font-medium whitespace-nowrap transition-[opacity,border-color,transform] duration-150 active:translate-y-[1px] disabled:pointer-events-none disabled:opacity-40 ${sizing} ${VARIANT[variant]} ${className}`}
       {...rest}
     >
       {busy ? <Spinner /> : null}
@@ -116,7 +117,7 @@ export function Spinner({ size = 13 }: { size?: number }) {
   return (
     <span
       aria-hidden="true"
-      className="spin-slow inline-block rounded-full border-2 border-current border-t-transparent opacity-60"
+      className="spin-slow inline-block rounded-full border-2 border-current border-t-transparent opacity-50"
       style={{ width: size, height: size }}
     />
   );
@@ -126,15 +127,23 @@ export function Spinner({ size = 13 }: { size?: number }) {
  * Async states
  * ------------------------------------------------------------------ */
 
+/** Skeleton mirrors the real card's shape, never a generic spinner. */
 export function LoadingRows({ rows = 3 }: { rows?: number }) {
   return (
     <div className="grid gap-3" aria-live="polite" aria-busy="true">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">Loading</span>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="bg-surface hairline rounded-[11px] p-3.5">
-          <div className="bg-sunken h-3 w-1/3 rounded" />
-          <div className="bg-sunken mt-2.5 h-3 w-full rounded" />
-          <div className="bg-sunken mt-2 h-3 w-4/5 rounded" />
+        <div key={i} className="bg-surface hairline pulse-soft rounded-[14px] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="bg-sunken h-3.5 w-2/5 rounded-full" />
+            <div className="bg-sunken h-3.5 w-12 rounded-full" />
+          </div>
+          <div className="bg-sunken mt-3 h-3 w-full rounded-full" />
+          <div className="bg-sunken mt-2 h-3 w-4/6 rounded-full" />
+          <div className="mt-4 flex gap-2">
+            <div className="bg-sunken h-6 w-20 rounded-full" />
+            <div className="bg-sunken h-6 w-14 rounded-full" />
+          </div>
         </div>
       ))}
     </div>
@@ -151,23 +160,23 @@ export function ErrorCard({ message, onRetry, retrying = false }: ErrorCardProps
   return (
     <div
       role="alert"
-      className="rounded-[11px] border-[0.5px] border-overdue-border bg-overdue-bg p-3.5"
+      className="rise border-overdue-border bg-overdue-bg rounded-[14px] border p-4"
     >
-      <div className="flex items-start gap-2">
-        <Icon name="alert" className="mt-[3px] text-[var(--c-err)]" />
+      <div className="flex items-start gap-2.5">
+        <Icon name="alert" size={16} className="mt-[2px] text-[var(--c-err)]" />
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-medium">Couldn't load this</p>
-          <p className="text-muted mt-0.5 text-[13px]">{message}</p>
+          <p className="text-muted mt-1 text-[13px] leading-[1.5]">{message}</p>
         </div>
       </div>
       <Button
         variant="secondary"
         size="sm"
-        className="mt-3"
+        className="mt-3.5"
         onClick={onRetry}
         busy={retrying}
       >
-        <Icon name="refresh" />
+        <Icon name="refresh" size={13} />
         Retry
       </Button>
     </div>
@@ -184,22 +193,24 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="bg-surface hairline rounded-[11px] px-4 py-10 text-center">
-      <p className="text-[14px] font-medium">{title}</p>
+    <div className="bg-surface hairline rounded-[14px] px-5 py-12 text-center">
+      <p className="text-[15px] font-medium">{title}</p>
       {hint !== undefined ? (
-        <p className="text-muted mx-auto mt-1 max-w-[38ch] text-[13px]">{hint}</p>
+        <p className="text-muted mx-auto mt-1.5 max-w-[40ch] text-[13.5px] leading-[1.55]">
+          {hint}
+        </p>
       ) : null}
-      {action !== undefined ? <div className="mt-4">{action}</div> : null}
+      {action !== undefined ? <div className="mt-5">{action}</div> : null}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ *
- * Inputs
+ * Inputs. Label above, error below, never placeholder-as-label.
  * ------------------------------------------------------------------ */
 
 const FIELD =
-  'w-full rounded-[9px] bg-surface hairline px-3 py-2.5 text-[15px] placeholder:text-faint';
+  'w-full rounded-[10px] bg-surface hairline px-3 py-2.5 text-[15px] placeholder:text-faint transition-colors duration-150 hover:border-hairline-strong';
 
 export function TextField(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const { className = '', ...rest } = props;
@@ -208,7 +219,7 @@ export function TextField(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const { className = '', ...rest } = props;
-  return <textarea className={`${FIELD} resize-y ${className}`} {...rest} />;
+  return <textarea className={`${FIELD} resize-y leading-[1.55] ${className}`} {...rest} />;
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
@@ -216,14 +227,14 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <span className="relative block">
       <select
-        className={`${FIELD} min-h-[44px] appearance-none pr-9 ${className}`}
+        className={`${FIELD} min-h-[44px] cursor-pointer appearance-none pr-9 ${className}`}
         {...rest}
       >
         {children}
       </select>
       <Icon
         name="chevron-down"
-        size={11}
+        size={12}
         className="text-muted pointer-events-none absolute top-1/2 right-3 -translate-y-1/2"
       />
     </span>
@@ -233,19 +244,30 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 export function Field({
   label,
   required = false,
+  hint,
+  error,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="text-muted mb-1.5 block text-[12px] font-medium">
+      <span className="text-muted mb-1.5 flex items-baseline gap-1.5 text-[12.5px] font-medium">
         {label}
-        {required ? <span className="text-[var(--c-err)]"> *</span> : null}
+        {required ? (
+          <span className="text-faint text-[11px] font-normal">required</span>
+        ) : null}
       </span>
       {children}
+      {error !== undefined ? (
+        <span className="mt-1.5 block text-[12.5px] text-[var(--c-err)]">{error}</span>
+      ) : hint !== undefined ? (
+        <span className="text-faint mt-1.5 block text-[12.5px]">{hint}</span>
+      ) : null}
     </label>
   );
 }
@@ -263,6 +285,7 @@ export function SearchField({
     <div className="relative">
       <Icon
         name="search"
+        size={15}
         className="text-faint pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
       />
       <input
@@ -271,7 +294,7 @@ export function SearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className={`${FIELD} min-h-[44px] pl-9`}
+        className={`${FIELD} min-h-[44px] pl-9.5`}
       />
     </div>
   );
@@ -295,10 +318,10 @@ export function FilterChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`min-h-[34px] shrink-0 rounded-full px-3 text-[13px] font-medium whitespace-nowrap ${
+      className={`min-h-[34px] shrink-0 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 active:translate-y-[1px] ${
         active
-          ? 'bg-accent text-accent-ink border-[0.5px] border-transparent'
-          : 'bg-surface text-muted hairline'
+          ? 'bg-accent text-accent-ink border border-transparent'
+          : 'bg-surface text-muted hairline hover:border-hairline-strong hover:text-ink'
       }`}
     >
       {children}
@@ -308,8 +331,7 @@ export function FilterChip({
 
 /**
  * Chips bleed to the screen edges so the row reads as scrollable.
- * `min-w-0` is load-bearing: without it the automatic minimum size of this
- * grid item widens the whole column track and the page scrolls sideways.
+ * `min-w-0` prevents the item's automatic minimum size widening the track.
  */
 export function ChipRow({ children }: { children: React.ReactNode }) {
   return (
@@ -353,7 +375,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div
-        className="absolute inset-0 bg-black/35"
+        className="absolute inset-0 bg-[rgb(20_18_16/0.42)] backdrop-blur-[2px]"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -363,22 +385,24 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="bg-surface relative flex h-full max-h-full w-full flex-col sm:h-auto sm:max-h-[85vh] sm:max-w-[520px] sm:rounded-[12px] sm:border-[0.5px] sm:border-[var(--c-border)]"
+        className="bg-surface rise relative flex h-full max-h-full w-full flex-col sm:h-auto sm:max-h-[86vh] sm:max-w-[540px] sm:rounded-[14px] sm:border sm:border-[var(--c-border)] sm:shadow-[var(--shadow-sheet)]"
       >
         <header className="hairline-b flex items-center justify-between gap-3 px-4 py-3">
-          <h2 className="truncate text-[16px] font-medium">{title}</h2>
+          <h2 className="truncate text-[16px] font-medium tracking-[-0.01em]">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-muted -mr-2 flex size-11 items-center justify-center rounded-[9px]"
+            className="text-muted hover:text-ink -mr-2 flex size-11 items-center justify-center rounded-[10px] transition-colors"
           >
-            <Icon name="close" size={15} />
+            <Icon name="close" size={16} />
           </button>
         </header>
         <div className="flex-1 overflow-y-auto px-4 py-4">{children}</div>
         {footer !== undefined ? (
-          <footer className="hairline-t px-4 py-3">{footer}</footer>
+          <footer className="hairline-t bg-surface px-4 py-3 sm:rounded-b-[14px]">
+            {footer}
+          </footer>
         ) : null}
       </div>
     </div>
@@ -392,7 +416,7 @@ export function Modal({
 export function ConfirmButton({
   onConfirm,
   label = 'Delete',
-  confirmLabel = 'Really delete?',
+  confirmLabel = 'Confirm',
   className = '',
 }: {
   onConfirm: () => void;
@@ -423,14 +447,14 @@ export function ConfirmButton({
         }
       }}
     >
-      <Icon name="trash" />
+      <Icon name="trash" size={13} />
       {armed ? confirmLabel : label}
     </Button>
   );
 }
 
 /* ------------------------------------------------------------------ *
- * Section header used at the top of every tab
+ * Tab header
  * ------------------------------------------------------------------ */
 
 export function TabHeader({
@@ -443,11 +467,13 @@ export function TabHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2.5">
       <div className="min-w-0">
-        <h1 className="text-[17px] font-medium">{title}</h1>
+        <h1 className="text-[21px] leading-none font-semibold tracking-[-0.02em]">
+          {title}
+        </h1>
         {subtitle !== undefined ? (
-          <p className="text-muted mt-0.5 text-[13px]">{subtitle}</p>
+          <div className="text-muted mt-2 text-[13px]">{subtitle}</div>
         ) : null}
       </div>
       {actions !== undefined ? (
@@ -457,12 +483,17 @@ export function TabHeader({
   );
 }
 
-/**
- * Metadata separator. Decorative only — hidden from screen readers so a
- * card doesn't get read out as "Kokapet dot 3BHK dot 2.4 Cr".
- */
+/** Persistent advisory banner for best-effort sources. */
+export function Notice({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-muted border-l-2 border-[var(--c-border-strong)] py-0.5 pl-3 text-[12.5px] leading-[1.5]">
+      {children}
+    </p>
+  );
+}
+
+/** Metadata separator. Decorative, so hidden from screen readers. */
 export function Dot({ spaced = false }: { spaced?: boolean }) {
-  // `spaced` for runs of inline text, where there's no flex gap to lean on.
   return (
     <span aria-hidden="true" className={spaced ? 'text-faint mx-1.5' : 'text-faint'}>
       ·
@@ -470,16 +501,6 @@ export function Dot({ spaced = false }: { spaced?: boolean }) {
   );
 }
 
-/** Persistent muted advisory banner (Twitter / Insta best-effort notes). */
-export function Notice({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="bg-sunken hairline text-muted rounded-[9px] px-3 py-2 text-[12.5px]">
-      {children}
-    </p>
-  );
-}
-
-/** External link that never leaves the app in the same tab. */
 export function ExternalLink({
   href,
   children,
@@ -495,7 +516,7 @@ export function ExternalLink({
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className={`inline-flex min-h-[34px] items-center gap-1.5 text-[13px] font-medium underline-offset-2 hover:underline ${className}`}
+      className={`hover:text-ink inline-flex min-h-[36px] items-center gap-1.5 text-[13px] font-medium transition-colors ${className}`}
     >
       {children}
     </a>

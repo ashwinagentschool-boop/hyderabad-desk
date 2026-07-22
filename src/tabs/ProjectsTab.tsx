@@ -171,10 +171,10 @@ export function ProjectsTab() {
 }
 
 function ProjectCard({ project }: { project: Project }) {
-  const price = [project.priceFrom, project.priceTo].filter(Boolean).join(' – ');
+  const price = [project.priceFrom, project.priceTo].filter(Boolean).join(' - ');
 
   return (
-    <Card className="fade-in flex flex-col gap-2">
+    <Card className="rise flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="truncate text-[15px] font-medium">{project.name}</h2>
@@ -185,16 +185,16 @@ function ProjectCard({ project }: { project: Project }) {
         {project.rera === true ? <TealBadge>RERA</TealBadge> : <Chip>No RERA</Chip>}
       </div>
 
+      {/* Price gets its own line. It is the value the agent scans for, and
+          a mono range inline in the meta run wraps at 375px. */}
+      {price !== '' ? (
+        <p className="num text-[15px] font-medium tracking-[-0.01em]">{price}</p>
+      ) : null}
+
       <p className="text-[13.5px]">
         {project.area}
         <Dot spaced />
         {project.type}
-        {price !== '' ? (
-          <>
-            <Dot spaced />
-            {price}
-          </>
-        ) : null}
       </p>
 
       <p className="text-muted text-[13px]">
@@ -202,7 +202,7 @@ function ProjectCard({ project }: { project: Project }) {
         {project.sqftRange !== undefined ? (
           <>
             <Dot spaced />
-            {project.sqftRange}
+            <span className="num">{project.sqftRange}</span>
           </>
         ) : null}
       </p>

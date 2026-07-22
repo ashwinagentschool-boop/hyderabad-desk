@@ -12,7 +12,7 @@ interface ListEditorProps {
 }
 
 /**
- * Editable list of short strings — subreddits, keywords, X handles,
+ * Editable list of short strings: subreddits, keywords, X handles,
  * Instagram accounts. One component, four call sites.
  */
 export function ListEditor({
@@ -34,21 +34,21 @@ export function ListEditor({
 
   return (
     <div>
-      <p className="text-muted mb-2 text-[12px] font-medium">{label}</p>
+      <p className="text-muted mb-2.5 text-[12.5px] font-medium">{label}</p>
 
       {values.length > 0 ? (
-        <ul className="mb-2 flex flex-wrap gap-2">
+        <ul className="mb-3 flex flex-wrap gap-1.5">
           {values.map((value) => (
             <li
               key={value}
-              className="bg-sunken hairline flex items-center gap-1 rounded-full py-1 pr-1 pl-2.5 text-[13px]"
+              className="bg-sunken flex items-center gap-0.5 rounded-full py-1 pr-1 pl-3 text-[13px]"
             >
               <span className="max-w-[190px] truncate">{value}</span>
               <button
                 type="button"
                 aria-label={`Remove ${value}`}
                 onClick={() => onChange(values.filter((v) => v !== value))}
-                className="text-faint hover:text-ink flex size-7 items-center justify-center rounded-full"
+                className="text-faint hover:text-ink flex size-6 items-center justify-center rounded-full transition-colors"
               >
                 <Icon name="close" size={11} />
               </button>
@@ -56,7 +56,7 @@ export function ListEditor({
           ))}
         </ul>
       ) : (
-        <p className="text-faint mb-2 text-[13px]">Nothing added yet.</p>
+        <p className="text-faint mb-3 text-[13px]">Nothing added yet.</p>
       )}
 
       <div className="flex gap-2">
@@ -73,7 +73,7 @@ export function ListEditor({
           aria-label={`Add to ${label}`}
         />
         <Button variant="secondary" onClick={add} disabled={draft.trim() === ''}>
-          <Icon name="plus" />
+          <Icon name="plus" size={14} />
           Add
         </Button>
       </div>

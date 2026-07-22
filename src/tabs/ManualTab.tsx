@@ -9,7 +9,6 @@ import {
   CardGrid,
   ChipRow,
   ConfirmButton,
-  Dot,
   EmptyState,
   ErrorCard,
   ExternalLink,
@@ -188,12 +187,12 @@ function LeadCard({ lead, onEdit }: { lead: Lead; onEdit: () => void }) {
   const dueToday = isDueToday(lead.followUpDate, lead.status);
 
   return (
-    <Card tone={overdue ? 'overdue' : 'default'} className="fade-in flex flex-col gap-2.5">
+    <Card tone={overdue ? 'overdue' : 'default'} className="rise flex flex-col gap-2.5">
       <div className="flex items-start justify-between gap-2">
         <button
           type="button"
           onClick={onEdit}
-          className="min-w-0 flex-1 text-left text-[15px] font-medium"
+          className="min-w-0 flex-1 text-left text-[16px] font-semibold tracking-[-0.01em]"
         >
           <span className="block truncate">{lead.name}</span>
         </button>
@@ -202,32 +201,36 @@ function LeadCard({ lead, onEdit }: { lead: Lead; onEdit: () => void }) {
 
       <p className="text-[14px] leading-[1.5]">{lead.requirement}</p>
 
-      <div className="text-muted flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+      {/* No separators here: this row wraps at 375px and a trailing
+          middle-dot orphaned at the end of a line reads as a bug.
+          Weight and colour carry the hierarchy instead. */}
+      <div className="text-muted flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px]">
         {lead.area !== undefined && lead.area !== '' ? <span>{lead.area}</span> : null}
         {lead.budget !== undefined && lead.budget !== '' ? (
-          <>
-            <Dot />
-            <span>{lead.budget}</span>
-          </>
+          <span className="num text-ink font-medium">{lead.budget}</span>
         ) : null}
         {lead.phone !== undefined && lead.phone !== '' ? (
-          <>
-            <Dot />
-            <a href={`tel:${lead.phone.replace(/\s/g, '')}`} className="hover:underline">
-              {lead.phone}
-            </a>
-          </>
+          <a
+            href={`tel:${lead.phone.replace(/\s/g, '')}`}
+            className="num hover:text-ink transition-colors"
+          >
+            {lead.phone}
+          </a>
         ) : null}
       </div>
 
+      {/* Overdue is the one thing that must survive a two-second glance,
+          so it gets a rule as well as colour. */}
       {lead.followUpDate !== undefined ? (
         <p
           className={`text-[13px] font-medium ${
-            overdue ? 'text-[var(--c-reddit-text)]' : 'text-muted'
+            overdue
+              ? 'text-[var(--c-overdue-rule)] border-l-2 border-[var(--c-overdue-rule)] pl-2.5'
+              : 'text-muted'
           }`}
         >
           {overdue
-            ? `Overdue — follow up was ${shortDate(lead.followUpDate)}`
+            ? `Overdue since ${shortDate(lead.followUpDate)}`
             : dueToday
               ? 'Follow up today'
               : `Follow up ${shortDate(lead.followUpDate)}`}

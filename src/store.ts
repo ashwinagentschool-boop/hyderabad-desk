@@ -373,7 +373,7 @@ export const useStore = create<AppState>()(
                   {
                     id: `err_${s.chat.items.length}`,
                     role: 'assistant',
-                    text: `Couldn't answer that — ${errorMessage(e)}`,
+                    text: `Couldn't answer that. ${errorMessage(e)}`,
                     createdAt: new Date().toISOString(),
                   },
                 ],

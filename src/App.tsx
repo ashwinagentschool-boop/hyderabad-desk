@@ -30,13 +30,29 @@ export default function App() {
 
   return (
     <div className="min-h-dvh">
+      {/* Opaque, not frosted. Glass belongs on consumer surfaces; here it
+          would put moving content behind small labels read in sunlight. */}
       <header className="bg-bg hairline-b sticky top-0 z-40">
-        <div className="mx-auto flex h-12 max-w-[1180px] items-center justify-between gap-3 px-4">
-          <span className="text-[15px] font-medium">Hyderabad Desk</span>
-          <StatusToggle />
-        </div>
-        <div className="mx-auto max-w-[1180px]">
-          <TabStrip />
+        {/* Two stacked rows on phones. From 960px everything shares one
+            row, which keeps the whole header under the 80px nav cap
+            instead of eating 11% of the viewport. */}
+        <div className="mx-auto max-w-[1180px] min-[960px]:px-4">
+          <div className="min-[960px]:flex min-[960px]:h-15 min-[960px]:items-center min-[960px]:gap-6">
+            <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-4 min-[960px]:h-auto min-[960px]:px-0">
+              <span className="text-[15px] font-semibold tracking-[-0.01em]">
+                Hyderabad Desk
+              </span>
+              <span className="min-[960px]:hidden">
+                <StatusToggle />
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <TabStrip />
+            </div>
+            <span className="hidden shrink-0 min-[960px]:block">
+              <StatusToggle />
+            </span>
+          </div>
         </div>
         <StatusStrip />
       </header>
@@ -45,9 +61,9 @@ export default function App() {
         id={`panel-${activeTab}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTab}`}
-        className="mx-auto max-w-[1180px] px-4 py-4 pb-10"
+        className="mx-auto max-w-[1180px] px-4 py-5 pb-14"
       >
-        {/* Keyed so switching tabs resets local filter/search state. */}
+        {/* Keyed so switching tabs resets local filter and search state. */}
         <Panel key={activeTab} />
       </main>
 

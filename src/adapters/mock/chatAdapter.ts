@@ -29,6 +29,8 @@ function toLakhs(value?: string): number | undefined {
 /** The upper end of a range like "1.3 - 1.5 Cr" (unit may appear once). */
 function budgetCeilingLakhs(value?: string): number | undefined {
   if (!value) return undefined;
+  // Accepts hyphen, en-dash and "to" so ranges the agent typed by hand
+  // still parse. Display always writes a plain hyphen.
   const parts = value.split(/[-–to]+/i).filter((p) => /\d/.test(p));
   if (parts.length === 0) return undefined;
   const unitMatch = /(cr|crore|l|lac|lakh|lakhs)/i.exec(value);
@@ -109,9 +111,9 @@ const isReady = (p: Project) => /ready/i.test(p.possession ?? '');
  * ------------------------------------------------------------------ */
 
 function projectLine(p: Project): string {
-  const price = [p.priceFrom, p.priceTo].filter(Boolean).join(' – ');
+  const price = [p.priceFrom, p.priceTo].filter(Boolean).join(' - ');
   const bits = [p.area, p.type, price || null, p.possession || null].filter(Boolean);
-  return `• ${p.name}${p.builder ? ` (${p.builder})` : ''} — ${bits.join(' · ')}`;
+  return `• ${p.name}${p.builder ? ` (${p.builder})` : ''} - ${bits.join(' · ')}`;
 }
 
 function leadLine(l: Lead): string {
@@ -121,7 +123,7 @@ function leadLine(l: Lead): string {
     STATUS_LABEL[l.status],
     l.source === 'reddit' ? 'from Reddit' : null,
   ].filter(Boolean);
-  return `• ${l.name} — ${bits.join(' · ')}`;
+  return `• ${l.name} - ${bits.join(' · ')}`;
 }
 
 function listOrNone(lines: string[], noneText: string): string {
@@ -174,7 +176,7 @@ function answer(question: string, projects: Project[], leads: Lead[]): string {
         });
         if (affordable.length === 0) {
           lines.push(
-            `• ${lead.name} (${area}, ${lead.budget ?? 'budget not set'}) — nothing in ${area} lands inside that budget.`,
+            `• ${lead.name} (${area}, ${lead.budget ?? 'budget not set'}): nothing in ${area} fits that budget.`,
           );
         } else {
           lines.push(
@@ -199,14 +201,14 @@ function answer(question: string, projects: Project[], leads: Lead[]): string {
       const rows = [
         `${a.name} vs ${b.name}`,
         '',
-        `Area — ${a.area} vs ${b.area}`,
-        `Type — ${a.type} vs ${b.type}`,
-        `Price — ${[a.priceFrom, a.priceTo].filter(Boolean).join(' – ') || 'n/a'} vs ${
-          [b.priceFrom, b.priceTo].filter(Boolean).join(' – ') || 'n/a'
+        `Area: ${a.area} vs ${b.area}`,
+        `Type: ${a.type} vs ${b.type}`,
+        `Price: ${[a.priceFrom, a.priceTo].filter(Boolean).join(' - ') || 'n/a'} vs ${
+          [b.priceFrom, b.priceTo].filter(Boolean).join(' - ') || 'n/a'
         }`,
-        `Size — ${a.sqftRange ?? 'n/a'} vs ${b.sqftRange ?? 'n/a'}`,
-        `Possession — ${a.possession ?? 'n/a'} vs ${b.possession ?? 'n/a'}`,
-        `RERA — ${a.rera ? 'yes' : 'no'} vs ${b.rera ? 'yes' : 'no'}`,
+        `Size: ${a.sqftRange ?? 'n/a'} vs ${b.sqftRange ?? 'n/a'}`,
+        `Possession: ${a.possession ?? 'n/a'} vs ${b.possession ?? 'n/a'}`,
+        `RERA: ${a.rera ? 'yes' : 'no'} vs ${b.rera ? 'yes' : 'no'}`,
       ];
       return rows.join('\n');
     }

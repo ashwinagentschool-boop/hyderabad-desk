@@ -2,12 +2,13 @@ import type { LeadSource, LeadStatus } from '../adapters/types';
 import { STATUS_LABEL, STATUS_ORDER } from '../lib/format';
 import { Icon } from './Icon';
 
+/**
+ * Colour law: hue is reserved for meaning. Provenance badges say where a
+ * record came from; status pills say where it sits in the pipeline.
+ * Nothing else on the page is coloured.
+ */
 const BASE =
-  'inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[11px] leading-none font-medium whitespace-nowrap';
-
-/* ------------------------------------------------------------------ *
- * Source badges — Reddit coral, Manual purple, Sheet/RERA teal.
- * ------------------------------------------------------------------ */
+  'inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[11px] leading-[15px] font-medium whitespace-nowrap';
 
 const SOURCE_CLASS: Record<LeadSource, string> = {
   reddit: 'bg-reddit-bg text-reddit-ink',
@@ -26,17 +27,15 @@ export function TealBadge({ children }: { children: React.ReactNode }) {
   return <span className={`${BASE} bg-teal-bg text-teal-ink`}>{children}</span>;
 }
 
-/* ------------------------------------------------------------------ *
- * Status pills
- * ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
 
 const STATUS_CLASS: Record<LeadStatus, string> = {
-  new: 'bg-[var(--c-new-bg)] text-[var(--c-new-text)]',
-  contacted: 'bg-[var(--c-amber-bg)] text-[var(--c-amber-text)]',
-  site_visit: 'bg-[var(--c-amber-bg)] text-[var(--c-amber-text)]',
-  negotiation: 'bg-[var(--c-green-bg)] text-[var(--c-green-text)]',
-  closed: 'bg-[var(--c-gray-bg)] text-[var(--c-gray-text)]',
-  lost: 'bg-[var(--c-red-bg)] text-[var(--c-red-text)]',
+  new: 'bg-[var(--c-new-bg)] text-[var(--c-new-ink)]',
+  contacted: 'bg-[var(--c-amber-bg)] text-[var(--c-amber-ink)]',
+  site_visit: 'bg-[var(--c-amber-bg)] text-[var(--c-amber-ink)]',
+  negotiation: 'bg-[var(--c-green-bg)] text-[var(--c-green-ink)]',
+  closed: 'bg-[var(--c-gray-bg)] text-[var(--c-gray-ink)]',
+  lost: 'bg-[var(--c-red-bg)] text-[var(--c-red-ink)]',
 };
 
 export function StatusPill({ status }: { status: LeadStatus }) {
@@ -44,9 +43,8 @@ export function StatusPill({ status }: { status: LeadStatus }) {
 }
 
 /**
- * The status pill *is* the quick status control — same colours as the
- * read-only pill, but it changes the lead in place. Avoids showing the
- * status twice on one card.
+ * The status pill IS the quick status control, so the card never shows
+ * the same value twice.
  */
 export function StatusSelect({
   status,
@@ -66,7 +64,7 @@ export function StatusSelect({
         value={status}
         onChange={(e) => onChange(e.target.value as LeadStatus)}
         onClick={(e) => e.stopPropagation()}
-        className="min-h-[34px] cursor-pointer appearance-none rounded-full bg-transparent py-1 pr-7 pl-3 text-[13px] font-medium"
+        className="min-h-[34px] cursor-pointer appearance-none rounded-full bg-transparent py-1 pr-7 pl-3 text-[12.5px] font-medium"
       >
         {STATUS_ORDER.map((s) => (
           <option key={s} value={s}>
@@ -76,19 +74,14 @@ export function StatusSelect({
       </select>
       <Icon
         name="chevron-down"
-        size={10}
-        className="pointer-events-none absolute right-2.5"
+        size={11}
+        className="pointer-events-none absolute right-2.5 opacity-70"
       />
     </span>
   );
 }
 
-/* ------------------------------------------------------------------ *
- * Neutral chips (matched keywords, tags, meta)
- * ------------------------------------------------------------------ */
-
+/** Neutral chip: matched keywords, tags, subreddits. Carries no meaning. */
 export function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className={`${BASE} bg-sunken text-muted hairline`}>{children}</span>
-  );
+  return <span className={`${BASE} bg-sunken text-muted`}>{children}</span>;
 }

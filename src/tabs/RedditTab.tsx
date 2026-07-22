@@ -112,7 +112,7 @@ function PostCard({ post }: { post: RedditPost }) {
   };
 
   return (
-    <Card className="fade-in flex flex-col gap-2.5">
+    <Card className="rise flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-[14px] font-medium">{post.username}</span>
         <span className="text-faint shrink-0 text-[12px]">

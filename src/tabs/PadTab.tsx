@@ -85,7 +85,7 @@ export function PadTab() {
           title={pad.items.length === 0 ? 'The pad is empty' : 'Nothing matches'}
           hint={
             pad.items.length === 0
-              ? 'Drop a link or a quick note above — it stays here across reloads.'
+              ? 'Drop a link or a quick note above. It stays across reloads.'
               : 'Clear the filter or change the search.'
           }
         />
@@ -165,7 +165,7 @@ function PadInput() {
       </div>
 
       {justAdded !== null ? (
-        <div className="bg-sunken hairline fade-in flex flex-wrap items-center gap-2 rounded-[9px] px-3 py-2">
+        <div className="bg-sunken hairline rise flex flex-wrap items-center gap-2 rounded-[9px] px-3 py-2">
           <span className="text-muted text-[13px]">Tag it?</span>
           {TAGS.map((tag) => (
             <FilterChip
@@ -199,7 +199,7 @@ function PadCard({ entry }: { entry: PadEntry }) {
   const deletePadEntry = useStore((s) => s.deletePadEntry);
 
   return (
-    <Card className="fade-in flex flex-col gap-2">
+    <Card className="rise flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         {entry.isLink ? (
           <p className="text-muted flex min-w-0 items-center gap-1.5 text-[13.5px]">

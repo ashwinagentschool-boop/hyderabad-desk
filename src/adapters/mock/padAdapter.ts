@@ -6,7 +6,7 @@ const STORE = 'pad';
 const seed = (): PadEntry[] => [
   {
     id: 'pd_seed_1',
-    content: 'Farah wants title docs verified before any site visit — get the EC copy.',
+    content: 'Farah wants title docs verified before any site visit. Get the EC copy.',
     isLink: false,
     tag: 'lead',
     createdAt: agoIso(190),
@@ -15,7 +15,7 @@ const seed = (): PadEntry[] => [
     id: 'pd_seed_2',
     content: 'https://telanganatoday.com/hyderabad-metro-phase-2',
     isLink: true,
-    note: 'Metro Phase II — use in the Madhapur pitch',
+    note: 'Metro Phase II, use in the Madhapur pitch',
     tag: 'news',
     createdAt: agoIso(640),
   },

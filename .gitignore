@@ -41,3 +41,10 @@ Thumbs.db
 
 # Tooling
 .gstack/
+
+# Third-party agent skills installed via `npx skills add`.
+# Reproducible from skills-lock.json; .claude/skills/* are junctions to
+# .agents/skills/*, so committing both would duplicate every file.
+.agents/
+.claude/
+skills-lock.json

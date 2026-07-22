@@ -163,7 +163,7 @@ function SavedCard({ entry }: { entry: InstaEntry }) {
   const deleteInstaEntry = useStore((s) => s.deleteInstaEntry);
 
   return (
-    <Card className="fade-in flex flex-col gap-2">
+    <Card className="rise flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-[14px] font-medium">
           {entry.account ?? 'Saved post'}
@@ -224,7 +224,7 @@ function AccountWatch() {
         </Button>
       </div>
 
-      <Notice>Best-effort — Instagram limits automated access.</Notice>
+      <Notice>Best-effort results. Instagram limits automated access.</Notice>
 
       <Collapsible title="Accounts watched">
         {settings === null ? (
@@ -255,7 +255,7 @@ function AccountWatch() {
       ) : discovered.items.length > 0 ? (
         <CardGrid>
           {discovered.items.map((entry) => (
-            <Card key={entry.id} className="fade-in flex flex-col gap-2">
+            <Card key={entry.id} className="rise flex flex-col gap-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-[14px] font-medium">
                   {entry.account ?? 'Post'}

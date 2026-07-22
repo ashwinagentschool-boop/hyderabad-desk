@@ -10,7 +10,7 @@ const seed = (): InstaEntry[] => [
     id: 'ig_seed_1',
     url: 'https://www.instagram.com/p/CxKokapetTour/',
     account: '@hyderabadrealty',
-    note: 'Walkthrough of the Neopolis clubhouse — good to send to Sandeep.',
+    note: 'Walkthrough of the Neopolis clubhouse, good to send to Sandeep.',
     savedAt: agoIso(60 * 26),
   },
 ];
