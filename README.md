@@ -4,6 +4,8 @@ A mobile-first lead and market dashboard for a Hyderabad real-estate agent.
 Reddit buying-intent triage, a unified lead pipeline, project inventory, market
 news, and a rule-based assistant that answers from the agent's own data.
 
+**Live:** https://hyderabad-desk.vercel.app
+
 **This phase is frontend-only.** Every screen runs on mock adapters with
 `localStorage` persistence. No backend, no API keys, no environment variables.
 A Python worker on a Raspberry Pi plus Supabase arrives later and swaps in
@@ -93,10 +95,19 @@ refreshes and deep links never 404.
 
 ```bash
 npm i -g vercel
+vercel login
 
-vercel          # first run: links the project, then deploys a preview
-vercel --prod   # promote to production
+vercel          # first run links the project, then deploys
+vercel --prod   # subsequent production deploys
 ```
+
+> **Project name.** Vercel derives it from the directory name and rejects
+> uppercase. This repo lives in `C:\July21`, so `vercel` fails with a 400 until
+> the project is linked with an explicit lowercase name:
+>
+> ```bash
+> vercel link --yes --project hyderabad-desk
+> ```
 
 On the first `vercel` run, accept the detected settings:
 
@@ -104,6 +115,12 @@ On the first `vercel` run, accept the detected settings:
 - Build command: `npm run build`
 - Output directory: `dist`
 - Install command: `npm install`
+
+> **Deployment Protection.** On a team with Vercel Authentication enabled, the
+> generated `*-<hash>-<team>.vercel.app` deployment URLs sit behind an SSO login
+> and will look "broken" to anyone not signed in. The clean project alias —
+> `hyderabad-desk.vercel.app` — is public and is the URL to share. To open up
+> the per-deployment URLs too, turn off Settings → Deployment Protection.
 
 ### Path B — Git + the Vercel dashboard
 
