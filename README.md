@@ -129,11 +129,17 @@ a manual refresh via a 60-second poll while the Reddit tab is open.
 ### Reddit access (no credentials)
 
 The worker fetches the **public** `https://www.reddit.com/r/{sub}/new.json`
-endpoint — no Reddit account, no API key, no OAuth. Every request goes
-through one shared session carrying a descriptive User-Agent, because
-Reddit 403s the default python-requests / curl / PowerShell User-Agents.
-A 403 on `www.reddit.com` retries once on `old.reddit.com`; a 429 honours
-`Retry-After` then backs off 30s and 60s before skipping that subreddit.
+endpoint — no Reddit account, no API key, no OAuth. Reddit's WAF blocks a
+plain script by its **TLS fingerprint** (a browser loads the URL fine while
+python-requests gets 403 from the same IP), so the shared session uses
+[`curl_cffi`](https://github.com/lexiforest/curl_cffi) to replay a real
+Chrome TLS + HTTP/2 fingerprint. Same endpoint, no credentials, just a
+handshake the WAF recognises as a browser. A 403 on `www.reddit.com`
+retries once on `old.reddit.com`; a 429 honours `Retry-After` then backs
+off 30s and 60s before skipping that subreddit.
+
+If `curl_cffi` cannot be installed the worker falls back to plain requests,
+which will be 403'd wherever the WAF fingerprints — so keep it installed.
 
 **Verify connectivity on a new machine** before scheduling anything. First
 the raw request, which should print JSON (not a block page):
@@ -148,16 +154,17 @@ curl -s -A "hyderabad-desk/1.0 (personal dashboard)" "https://www.reddit.com/r/h
 ```
 
 Then the worker's own path, which is the check that actually matters (it
-uses the exact session and User-Agent the scheduled run uses):
+uses the exact session the scheduled run uses, `curl_cffi` and all):
 
 ```bash
 python fetch_reddit.py --test-fetch          # prints HTTP status, post count, first title
 ```
 
 `--test-fetch` touches no database and makes no LLM call. A `200 OK` with a
-post count means the scheduled runs will fetch fine on that machine. A 403
-here (with the User-Agent set) means an IP-level or TLS-fingerprint block,
-not a code problem — the message says so.
+post count means the scheduled runs will fetch fine on that machine. If it
+still 403s here — with `curl_cffi` sending a real Chrome fingerprint — the
+block is at the IP level (that network is blocklisted), not a code problem;
+run the worker from a network whose browser can open the `.json` URL.
 
 Live mode is gated behind Supabase Auth (email + password). The single user
 is created by hand in the Supabase dashboard; there is no signup in the app.

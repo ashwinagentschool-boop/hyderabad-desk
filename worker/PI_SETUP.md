@@ -80,11 +80,12 @@ no LLM:
 ./.venv/bin/python fetch_reddit.py --test-fetch
 ```
 
-A `200 OK` with a post count and a title means you are clear. If you get a
-403 here even though the `curl` line above returned JSON, note that `curl`
-and python-requests have different TLS fingerprints — Reddit can allow one
-and block the other from the same machine. In that case this host cannot
-scrape Reddit directly; run the worker somewhere its `--test-fetch` passes.
+A `200 OK` with a post count and a title means you are clear. The worker
+uses `curl_cffi` to send a real Chrome TLS fingerprint (installed in step 2
+via `requirements.txt`), which is what gets past Reddit's WAF where a plain
+script is 403'd. If `--test-fetch` still 403s here even though a browser on
+this network opens the `.json` URL, the block is at the IP level for this
+host; run the worker from a network whose browser can reach Reddit.
 
 Once `--test-fetch` is green, the dry run shows the full pipeline without
 writing anything:

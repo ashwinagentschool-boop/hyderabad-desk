@@ -1,6 +1,12 @@
 # Hyderabad Desk — Reddit worker
 # Python 3.11+
 requests>=2.32.0
+# Reddit's WAF blocks requests by its TLS handshake fingerprint, not the
+# User-Agent: a browser loads the .json URL fine while python-requests gets
+# 403 from the same IP. curl_cffi replays a real Chrome TLS + HTTP/2
+# fingerprint, so the same public endpoint answers. Still no account, no
+# OAuth. If it is not installed the worker falls back to plain requests.
+curl_cffi>=0.7.0
 supabase>=2.10.0
 anthropic>=0.40.0
 python-dotenv>=1.0.1

@@ -35,10 +35,26 @@ from dotenv import load_dotenv
 from lib import db
 from lib.classify import MODEL, classify_posts
 
-# Every request carries this UA. Reddit's public .json endpoint 403s the
-# default python-requests / curl / PowerShell User-Agents; a descriptive
-# custom UA is what their API guidelines ask for and is what gets a browser
-# through. It is set once on the shared session so no call can forget it.
+# Reddit's WAF fingerprints the TLS handshake, so plain requests is 403'd
+# where a browser loads the same .json URL. curl_cffi replays a real Chrome
+# fingerprint and gets through. It is the default when installed; if it is
+# missing we fall back to plain requests (which will be blocked wherever the
+# WAF is fingerprinting, but keeps the worker importable and testable).
+try:
+    from curl_cffi import requests as reddit_http
+
+    # Present as a current Chrome, matching the browser that already works
+    # from this machine — same TLS fingerprint AND the same UA, so the WAF
+    # sees no mismatch. "chrome" tracks curl_cffi's latest supported build.
+    _IMPERSONATE: str | None = "chrome"
+except ImportError:  # pragma: no cover - exercised only without the dep
+    reddit_http = requests  # type: ignore[assignment]
+    _IMPERSONATE = None
+
+# Fallback UA, used only when curl_cffi is absent (plain requests). With
+# curl_cffi the session presents as Chrome — both TLS fingerprint and UA —
+# because a Chrome-TLS handshake paired with a custom UA is the kind of
+# mismatch Reddit's WAF flags; matching the browser exactly is what passes.
 USER_AGENT = "hyderabad-desk/1.0 (personal dashboard; contact: none)"
 
 PRIMARY_HOST = "https://www.reddit.com"
@@ -69,11 +85,21 @@ class FetchError(Exception):
     """
 
 
-def build_session() -> requests.Session:
+def build_session():
     """
-    The ONE session every Reddit request goes through. The custom UA lives
-    here so a request cannot be made without it.
+    The ONE session every Reddit request goes through.
+
+    With curl_cffi it impersonates Chrome (TLS + headers), so it looks like
+    the browser that already loads these URLs. Without it, a plain requests
+    session carries the descriptive fallback UA. Either way the session is
+    shared, so no request can be made outside it.
     """
+    if _IMPERSONATE is not None:
+        # curl_cffi sets Chrome's own UA under impersonation; only add Accept.
+        session = reddit_http.Session(impersonate=_IMPERSONATE)
+        session.headers.update({"Accept": "application/json"})
+        return session
+
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
     return session
@@ -85,17 +111,20 @@ def _retry_after(response: requests.Response) -> int | None:
     return int(value) if value.isdigit() else None
 
 
-def _get(session: requests.Session, host: str, sub: str, params: dict[str, str]):
+def _get(session, host: str, sub: str, params: dict[str, str]):
     """
     A single GET with one network/timeout retry. Raises FetchError if the
     connection itself fails twice; an HTTP error status is returned as-is
     for the caller's status ladder.
+
+    Both requests and curl_cffi raise only on transport failures (never on a
+    4xx/5xx status), so any exception from .get() is a genuine network error.
     """
     url = f"{host}/r/{sub}/new.json"
     for attempt in (1, 2):
         try:
             return session.get(url, params=params, timeout=HTTP_TIMEOUT_S)
-        except requests.RequestException as exc:
+        except Exception as exc:  # noqa: BLE001 — transport error from either client
             if attempt == 2:
                 raise FetchError(f"network error: {exc}") from exc
             log.warning("r/%s network error (%s); one retry", sub, exc)
@@ -271,16 +300,29 @@ def test_fetch(sub: str) -> int:
     fetch works. Prints status, count and first title; returns an exit code.
     """
     session = build_session()
-    log.info("GET https://www.reddit.com/r/%s/new.json  (UA: %s)", sub, USER_AGENT)
+    mode = (
+        f"Chrome TLS impersonation ({_IMPERSONATE})"
+        if _IMPERSONATE is not None
+        else f"plain requests, UA {USER_AGENT!r}"
+    )
+    log.info("GET https://www.reddit.com/r/%s/new.json  [%s]", sub, mode)
     try:
         raw = fetch_subreddit(session, sub, 5)
     except FetchError as exc:
         # fetch_subreddit already tried old.reddit.com on a 403; surface why.
         log.error("FAIL: %s", exc)
-        log.error(
-            "The custom User-Agent is set but the request was still refused. "
-            "This is an IP-level or TLS-fingerprint block, not a UA problem."
-        )
+        if _IMPERSONATE is not None:
+            log.error(
+                "Even with a real Chrome TLS fingerprint this machine was "
+                "refused, so the block is at the IP level, not TLS. Run the "
+                "worker from a network whose browser can open the .json URL."
+            )
+        else:
+            log.error(
+                "curl_cffi is not installed, so this used plain requests, "
+                "whose TLS fingerprint Reddit blocks. Install it: "
+                "pip install -r requirements.txt"
+            )
         return 1
 
     print(f"HTTP 200 OK — {len(raw)} post(s)")
