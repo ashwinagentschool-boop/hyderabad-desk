@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -36,127 +35,135 @@ from dotenv import load_dotenv
 from lib import db
 from lib.classify import MODEL, classify_posts
 
-# Reddit's WAF blocks library/script User-Agents on the public .json
-# endpoint (the "blocked by network security" 403), even from residential
-# IPs where a real browser loads the same URL fine. A browser UA gets a
-# personal, low-volume dashboard through. This is the default path and
-# needs no Reddit account.
-BROWSER_UA = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-)
+# Every request carries this UA. Reddit's public .json endpoint 403s the
+# default python-requests / curl / PowerShell User-Agents; a descriptive
+# custom UA is what their API guidelines ask for and is what gets a browser
+# through. It is set once on the shared session so no call can forget it.
+USER_AGENT = "hyderabad-desk/1.0 (personal dashboard; contact: none)"
 
-# The durable path: Reddit's official OAuth API. Set REDDIT_CLIENT_ID and
-# REDDIT_CLIENT_SECRET (a free "script" app at reddit.com/prefs/apps) and
-# the worker authenticates every request against oauth.reddit.com, which
-# the WAF never blocks and which grants a documented 100 req/min quota.
-# Reddit asks the OAuth UA to be unique and descriptive.
-OAUTH_UA = "script:hyderabad-desk:1.0 (personal real-estate lead dashboard)"
-
-PUBLIC_BASE = "https://www.reddit.com"
-OAUTH_BASE = "https://oauth.reddit.com"
-TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+PRIMARY_HOST = "https://www.reddit.com"
+# Same JSON, different host. Sometimes answers when the primary 403s, so it
+# is the single fallback for a 403 (not an IP change, but cheap to try).
+FALLBACK_HOST = "https://old.reddit.com"
 
 PER_SUB_LIMIT = 50
-REQUEST_SPACING_S = 1.0
+# Sequential fetches, minimum this gap between them. One run every two hours
+# never needs to go faster, and it keeps us well under Reddit's limits.
+REQUEST_SPACING_S = 1.5
+NETWORK_RETRY_SLEEP_S = 2
 BACKOFFS_S = (30, 60)
-HTTP_TIMEOUT_S = 20
+HTTP_TIMEOUT_S = 10
 
 log = logging.getLogger("fetch_reddit")
 
 
 # ------------------------------------------------------------------ #
-# Reddit
+# Reddit — public JSON only, no credentials
 # ------------------------------------------------------------------ #
 
 
-def _oauth_token(client_id: str, client_secret: str) -> str:
+class FetchError(Exception):
     """
-    Application-only OAuth token for a script app (client_credentials). Reads
-    public listings only; no Reddit account password is ever needed or stored.
+    A terminal per-subreddit fetch failure. The caller records it against
+    that subreddit and moves on; one bad sub never crashes the run.
     """
-    resp = requests.post(
-        TOKEN_URL,
-        auth=(client_id, client_secret),
-        data={"grant_type": "client_credentials"},
-        headers={"User-Agent": OAUTH_UA},
-        timeout=HTTP_TIMEOUT_S,
-    )
-    resp.raise_for_status()
-    token = resp.json().get("access_token")
-    if not token:
-        raise RuntimeError("Reddit returned no access_token")
-    return token
 
 
-def build_reddit_session() -> tuple[requests.Session, str]:
+def build_session() -> requests.Session:
     """
-    A ready-to-use session and the base URL to hit.
-
-    Prefers OAuth when REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET are set; a
-    bad or unreachable credential falls back to the public endpoint with a
-    browser UA rather than killing the whole run.
+    The ONE session every Reddit request goes through. The custom UA lives
+    here so a request cannot be made without it.
     """
     session = requests.Session()
-    session.headers.update(
-        {"Accept": "application/json", "Accept-Language": "en-US,en;q=0.9"}
-    )
+    session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+    return session
 
-    client_id = os.environ.get("REDDIT_CLIENT_ID", "").strip()
-    client_secret = os.environ.get("REDDIT_CLIENT_SECRET", "").strip()
-    have_creds = (
-        client_id and client_secret and "PASTE_HERE" not in (client_id, client_secret)
-    )
 
-    if have_creds:
+def _retry_after(response: requests.Response) -> int | None:
+    """Reddit's Retry-After, when it sends a plain-seconds value."""
+    value = (response.headers.get("Retry-After") or "").strip()
+    return int(value) if value.isdigit() else None
+
+
+def _get(session: requests.Session, host: str, sub: str, params: dict[str, str]):
+    """
+    A single GET with one network/timeout retry. Raises FetchError if the
+    connection itself fails twice; an HTTP error status is returned as-is
+    for the caller's status ladder.
+    """
+    url = f"{host}/r/{sub}/new.json"
+    for attempt in (1, 2):
         try:
-            token = _oauth_token(client_id, client_secret)
-            session.headers.update(
-                {"Authorization": f"Bearer {token}", "User-Agent": OAUTH_UA}
-            )
-            log.info("using Reddit OAuth (oauth.reddit.com)")
-            return session, OAUTH_BASE
-        except Exception as exc:  # noqa: BLE001 — degrade to public, don't abort
-            log.warning("Reddit OAuth failed (%s); falling back to public endpoint", exc)
+            return session.get(url, params=params, timeout=HTTP_TIMEOUT_S)
+        except requests.RequestException as exc:
+            if attempt == 2:
+                raise FetchError(f"network error: {exc}") from exc
+            log.warning("r/%s network error (%s); one retry", sub, exc)
+            time.sleep(NETWORK_RETRY_SLEEP_S)
+    raise FetchError("unreachable")  # for the type checker; loop always returns/raises
 
-    session.headers.update({"User-Agent": BROWSER_UA})
-    return session, PUBLIC_BASE
+
+def _parse_children(response: requests.Response, sub: str) -> list[dict[str, Any]]:
+    """
+    Pull the post dicts out of a 200 body. Reddit occasionally answers 200
+    with an HTML block page instead of JSON, so a parse failure logs the
+    first 200 chars and is treated as a fetch failure, not a crash.
+    """
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        snippet = response.text[:200].replace("\n", " ")
+        raise FetchError(f"non-JSON body (first 200 chars): {snippet}") from exc
+    children = payload.get("data", {}).get("children", [])
+    return [child.get("data", {}) for child in children if isinstance(child, dict)]
 
 
 def fetch_subreddit(
-    session: requests.Session, base: str, sub: str, limit: int
+    session: requests.Session, sub: str, limit: int
 ) -> list[dict[str, Any]]:
     """
-    One subreddit's newest posts.
+    One subreddit's newest posts, following the status ladder:
 
-    On 429 we back off 30s then 60s, then give up on this subreddit and let
-    the run continue — one rate-limited sub must not cost us the others.
-    Raises on a non-429 HTTP failure so the caller can record it per-sub.
+      200 -> parse and return.
+      429 -> honour Retry-After, else back off 30s then 60s; after two
+             retries give up on this sub (FetchError).
+      403 -> do NOT retry (it is an IP/policy block, not transient); try the
+             SAME path once on old.reddit.com. If that also fails, FetchError.
+      other / network / bad JSON -> FetchError.
+
+    Raising FetchError lets the caller log the failure and carry on.
     """
-    # oauth.reddit.com serves JSON without the .json suffix; the public host
-    # needs it. Everything downstream sees the same payload shape.
-    suffix = "" if base == OAUTH_BASE else ".json"
-    url = f"{base}/r/{sub}/new{suffix}"
     params = {"limit": str(limit), "raw_json": "1"}
 
+    # --- primary host, with 429 backoff ---------------------------------
     for attempt in range(len(BACKOFFS_S) + 1):
-        response = session.get(url, params=params, timeout=HTTP_TIMEOUT_S)
+        response = _get(session, PRIMARY_HOST, sub, params)
+        code = response.status_code
 
-        if response.status_code == 429:
+        if code == 200:
+            return _parse_children(response, sub)
+
+        if code == 429:
             if attempt < len(BACKOFFS_S):
-                wait = BACKOFFS_S[attempt]
+                wait = _retry_after(response) or BACKOFFS_S[attempt]
                 log.warning("r/%s rate limited (429); backing off %ss", sub, wait)
                 time.sleep(wait)
                 continue
-            log.error("r/%s still rate limited after backoff; skipping", sub)
-            return []
+            raise FetchError("rate limited (429) after 2 retries")
 
-        response.raise_for_status()
-        payload = response.json()
-        children = payload.get("data", {}).get("children", [])
-        return [child.get("data", {}) for child in children if isinstance(child, dict)]
+        if code == 403:
+            break  # to the single old.reddit.com fallback below
 
-    return []
+        raise FetchError(f"HTTP {code}")
+
+    # --- 403 fallback: old.reddit.com, one shot -------------------------
+    log.warning("r/%s got 403 on www.reddit.com; trying old.reddit.com", sub)
+    response = _get(session, FALLBACK_HOST, sub, params)
+    if response.status_code == 200:
+        return _parse_children(response, sub)
+    raise FetchError(
+        f"403 on www.reddit.com; old.reddit.com returned {response.status_code}"
+    )
 
 
 def to_post(raw: dict[str, Any], sub: str) -> dict[str, Any] | None:
@@ -191,7 +198,8 @@ def to_post(raw: dict[str, Any], sub: str) -> dict[str, Any] | None:
 
 def collect(subs: list[str], per_sub_limit: int) -> tuple[list[dict[str, Any]], list[str]]:
     """Fetch every subreddit in turn. Returns (posts, per-subreddit failures)."""
-    session, base = build_reddit_session()
+    # One shared session so the custom User-Agent is on every request.
+    session = build_session()
 
     posts: list[dict[str, Any]] = []
     failures: list[str] = []
@@ -200,7 +208,7 @@ def collect(subs: list[str], per_sub_limit: int) -> tuple[list[dict[str, Any]], 
         if index > 0:
             time.sleep(REQUEST_SPACING_S)
         try:
-            raw_posts = fetch_subreddit(session, base, sub, per_sub_limit)
+            raw_posts = fetch_subreddit(session, sub, per_sub_limit)
         except Exception as exc:  # noqa: BLE001 — one bad sub must not end the run
             log.error("r/%s fetch failed: %s", sub, exc)
             failures.append(sub)
@@ -247,7 +255,41 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="SUB",
         help="fetch a single subreddit instead of the settings list",
     )
+    parser.add_argument(
+        "--test-fetch",
+        action="store_true",
+        help="connectivity smoke test: hit one subreddit, print the HTTP "
+        "status, post count and first title. No database, no LLM.",
+    )
     return parser.parse_args(argv)
+
+
+def test_fetch(sub: str) -> int:
+    """
+    Standalone connectivity check for a new machine. Uses the exact shared
+    session and User-Agent the real run uses, so a pass here means the real
+    fetch works. Prints status, count and first title; returns an exit code.
+    """
+    session = build_session()
+    log.info("GET https://www.reddit.com/r/%s/new.json  (UA: %s)", sub, USER_AGENT)
+    try:
+        raw = fetch_subreddit(session, sub, 5)
+    except FetchError as exc:
+        # fetch_subreddit already tried old.reddit.com on a 403; surface why.
+        log.error("FAIL: %s", exc)
+        log.error(
+            "The custom User-Agent is set but the request was still refused. "
+            "This is an IP-level or TLS-fingerprint block, not a UA problem."
+        )
+        return 1
+
+    print(f"HTTP 200 OK — {len(raw)} post(s)")
+    if raw:
+        first = to_post(raw[0], sub)
+        title = (first or {}).get("title") or raw[0].get("title") or "(no title)"
+        print(f"first post: {title[:100]}")
+    print("Connectivity OK — the scheduled run will fetch fine on this machine.")
+    return 0
 
 
 def resolve_subreddits(args: argparse.Namespace, sb: Any) -> list[str]:
@@ -266,6 +308,16 @@ def resolve_subreddits(args: argparse.Namespace, sb: Any) -> list[str]:
 
 def run(args: argparse.Namespace) -> int:
     """Returns a process exit code. Always writes one fetch_logs row (unless dry)."""
+    # Connectivity smoke test: no DB, no LLM, one subreddit. Runs before any
+    # credential check so it works on a brand-new machine.
+    if args.test_fetch:
+        sub = (
+            args.only_sub.strip().lstrip("/").removeprefix("r/")
+            if args.only_sub
+            else db.DEFAULT_SUBREDDITS[0]
+        )
+        return test_fetch(sub)
+
     sb = None
     anthropic_key = ""
 

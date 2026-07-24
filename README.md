@@ -126,6 +126,39 @@ decisions. It never scrapes Reddit and never writes the heartbeat, so
 "synced 12m ago" always means the Pi actually ran. New posts appear without
 a manual refresh via a 60-second poll while the Reddit tab is open.
 
+### Reddit access (no credentials)
+
+The worker fetches the **public** `https://www.reddit.com/r/{sub}/new.json`
+endpoint — no Reddit account, no API key, no OAuth. Every request goes
+through one shared session carrying a descriptive User-Agent, because
+Reddit 403s the default python-requests / curl / PowerShell User-Agents.
+A 403 on `www.reddit.com` retries once on `old.reddit.com`; a 429 honours
+`Retry-After` then backs off 30s and 60s before skipping that subreddit.
+
+**Verify connectivity on a new machine** before scheduling anything. First
+the raw request, which should print JSON (not a block page):
+
+```powershell
+# Windows / PowerShell
+Invoke-RestMethod -Uri "https://www.reddit.com/r/hyderabadrealestate/new.json?limit=5&raw_json=1" -UserAgent "hyderabad-desk/1.0 (personal dashboard)"
+```
+```bash
+# Raspberry Pi / bash
+curl -s -A "hyderabad-desk/1.0 (personal dashboard)" "https://www.reddit.com/r/hyderabadrealestate/new.json?limit=5&raw_json=1" | head -c 500
+```
+
+Then the worker's own path, which is the check that actually matters (it
+uses the exact session and User-Agent the scheduled run uses):
+
+```bash
+python fetch_reddit.py --test-fetch          # prints HTTP status, post count, first title
+```
+
+`--test-fetch` touches no database and makes no LLM call. A `200 OK` with a
+post count means the scheduled runs will fetch fine on that machine. A 403
+here (with the User-Agent set) means an IP-level or TLS-fingerprint block,
+not a code problem — the message says so.
+
 Live mode is gated behind Supabase Auth (email + password). The single user
 is created by hand in the Supabase dashboard; there is no signup in the app.
 

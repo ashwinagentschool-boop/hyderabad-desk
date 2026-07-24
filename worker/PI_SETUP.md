@@ -63,15 +63,37 @@ chmod 600 .env
 
 ## 4. Smoke test
 
-Before installing any systemd unit, prove the worker runs:
+**First, prove Reddit is reachable from this machine.** Two checks, in order.
+
+Raw request — should print JSON, not an HTML "blocked" page:
+
+```bash
+curl -s -A "hyderabad-desk/1.0 (personal dashboard)" \
+  "https://www.reddit.com/r/hyderabadrealestate/new.json?limit=5&raw_json=1" | head -c 500
+```
+
+Then the worker's own connectivity test — the one that matters, since it
+uses the exact session and User-Agent the scheduled run uses. No database,
+no LLM:
+
+```bash
+./.venv/bin/python fetch_reddit.py --test-fetch
+```
+
+A `200 OK` with a post count and a title means you are clear. If you get a
+403 here even though the `curl` line above returned JSON, note that `curl`
+and python-requests have different TLS fingerprints — Reddit can allow one
+and block the other from the same machine. In that case this host cannot
+scrape Reddit directly; run the worker somewhere its `--test-fetch` passes.
+
+Once `--test-fetch` is green, the dry run shows the full pipeline without
+writing anything:
 
 ```bash
 ./.venv/bin/python fetch_reddit.py --dry-run --limit 5
 ```
 
-A dry run fetches from Reddit and prints what it would store. It makes no
-database writes and no LLM calls, so it costs nothing and cannot corrupt
-anything. Expect output like:
+It makes no database writes and no LLM calls. Expect output like:
 
 ```
 INFO fetch_reddit: r/hyderabadrealestate: 5 posts
@@ -96,9 +118,10 @@ post is classified exactly once in its lifetime.
 
 | Flag | What it does |
 | --- | --- |
+| `--test-fetch` | Connectivity check: one subreddit, print status/count/title. No DB, no LLM. |
 | `--dry-run` | Print what would happen. No writes, no LLM calls. |
 | `--limit N` | Cap the posts processed this run. |
-| `--only-sub SUB` | Fetch one subreddit instead of the settings list. |
+| `--only-sub SUB` | Fetch one subreddit instead of the settings list (also picks the `--test-fetch` sub). |
 
 ## 5. Install the timer
 
@@ -202,6 +225,7 @@ process, so the next run picks up the new code.
 | Symptom | Cause and fix |
 | --- | --- |
 | `SUPABASE_URL is not set` | `.env` is missing or still has `PASTE_HERE`. |
+| `--test-fetch` returns 403 | Reddit is refusing this machine even with the User-Agent set. The `curl` check may still pass (different TLS fingerprint). This host can't scrape Reddit directly; run the worker where `--test-fetch` returns 200. |
 | Every run logs `429` | Reddit is rate limiting this IP. Lengthen `OnCalendar`; the per-run backoff already handles bursts. |
 | Timer never fires | Not enabled. `sudo systemctl enable --now reddit-fetch.timer`. |
 | `status=203/EXEC` in the journal | The path in the unit is wrong. Check the `WorkingDirectory` and `ExecStart` lines. |
