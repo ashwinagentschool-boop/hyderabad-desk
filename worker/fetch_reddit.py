@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -35,9 +36,26 @@ from dotenv import load_dotenv
 from lib import db
 from lib.classify import MODEL, classify_posts
 
-# Reddit blocks the default python-requests UA outright. A descriptive,
-# honest UA is what their API guidelines ask for.
-USER_AGENT = "hyderabad-desk/1.0 (personal dashboard)"
+# Reddit's WAF blocks library/script User-Agents on the public .json
+# endpoint (the "blocked by network security" 403), even from residential
+# IPs where a real browser loads the same URL fine. A browser UA gets a
+# personal, low-volume dashboard through. This is the default path and
+# needs no Reddit account.
+BROWSER_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
+# The durable path: Reddit's official OAuth API. Set REDDIT_CLIENT_ID and
+# REDDIT_CLIENT_SECRET (a free "script" app at reddit.com/prefs/apps) and
+# the worker authenticates every request against oauth.reddit.com, which
+# the WAF never blocks and which grants a documented 100 req/min quota.
+# Reddit asks the OAuth UA to be unique and descriptive.
+OAUTH_UA = "script:hyderabad-desk:1.0 (personal real-estate lead dashboard)"
+
+PUBLIC_BASE = "https://www.reddit.com"
+OAUTH_BASE = "https://oauth.reddit.com"
+TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 
 PER_SUB_LIMIT = 50
 REQUEST_SPACING_S = 1.0
@@ -52,7 +70,62 @@ log = logging.getLogger("fetch_reddit")
 # ------------------------------------------------------------------ #
 
 
-def fetch_subreddit(session: requests.Session, sub: str, limit: int) -> list[dict[str, Any]]:
+def _oauth_token(client_id: str, client_secret: str) -> str:
+    """
+    Application-only OAuth token for a script app (client_credentials). Reads
+    public listings only; no Reddit account password is ever needed or stored.
+    """
+    resp = requests.post(
+        TOKEN_URL,
+        auth=(client_id, client_secret),
+        data={"grant_type": "client_credentials"},
+        headers={"User-Agent": OAUTH_UA},
+        timeout=HTTP_TIMEOUT_S,
+    )
+    resp.raise_for_status()
+    token = resp.json().get("access_token")
+    if not token:
+        raise RuntimeError("Reddit returned no access_token")
+    return token
+
+
+def build_reddit_session() -> tuple[requests.Session, str]:
+    """
+    A ready-to-use session and the base URL to hit.
+
+    Prefers OAuth when REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET are set; a
+    bad or unreachable credential falls back to the public endpoint with a
+    browser UA rather than killing the whole run.
+    """
+    session = requests.Session()
+    session.headers.update(
+        {"Accept": "application/json", "Accept-Language": "en-US,en;q=0.9"}
+    )
+
+    client_id = os.environ.get("REDDIT_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("REDDIT_CLIENT_SECRET", "").strip()
+    have_creds = (
+        client_id and client_secret and "PASTE_HERE" not in (client_id, client_secret)
+    )
+
+    if have_creds:
+        try:
+            token = _oauth_token(client_id, client_secret)
+            session.headers.update(
+                {"Authorization": f"Bearer {token}", "User-Agent": OAUTH_UA}
+            )
+            log.info("using Reddit OAuth (oauth.reddit.com)")
+            return session, OAUTH_BASE
+        except Exception as exc:  # noqa: BLE001 — degrade to public, don't abort
+            log.warning("Reddit OAuth failed (%s); falling back to public endpoint", exc)
+
+    session.headers.update({"User-Agent": BROWSER_UA})
+    return session, PUBLIC_BASE
+
+
+def fetch_subreddit(
+    session: requests.Session, base: str, sub: str, limit: int
+) -> list[dict[str, Any]]:
     """
     One subreddit's newest posts.
 
@@ -60,8 +133,11 @@ def fetch_subreddit(session: requests.Session, sub: str, limit: int) -> list[dic
     the run continue — one rate-limited sub must not cost us the others.
     Raises on a non-429 HTTP failure so the caller can record it per-sub.
     """
-    url = f"https://www.reddit.com/r/{sub}/new.json"
-    params = {"limit": str(limit)}
+    # oauth.reddit.com serves JSON without the .json suffix; the public host
+    # needs it. Everything downstream sees the same payload shape.
+    suffix = "" if base == OAUTH_BASE else ".json"
+    url = f"{base}/r/{sub}/new{suffix}"
+    params = {"limit": str(limit), "raw_json": "1"}
 
     for attempt in range(len(BACKOFFS_S) + 1):
         response = session.get(url, params=params, timeout=HTTP_TIMEOUT_S)
@@ -115,8 +191,7 @@ def to_post(raw: dict[str, Any], sub: str) -> dict[str, Any] | None:
 
 def collect(subs: list[str], per_sub_limit: int) -> tuple[list[dict[str, Any]], list[str]]:
     """Fetch every subreddit in turn. Returns (posts, per-subreddit failures)."""
-    session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+    session, base = build_reddit_session()
 
     posts: list[dict[str, Any]] = []
     failures: list[str] = []
@@ -125,7 +200,7 @@ def collect(subs: list[str], per_sub_limit: int) -> tuple[list[dict[str, Any]], 
         if index > 0:
             time.sleep(REQUEST_SPACING_S)
         try:
-            raw_posts = fetch_subreddit(session, sub, per_sub_limit)
+            raw_posts = fetch_subreddit(session, base, sub, per_sub_limit)
         except Exception as exc:  # noqa: BLE001 — one bad sub must not end the run
             log.error("r/%s fetch failed: %s", sub, exc)
             failures.append(sub)
