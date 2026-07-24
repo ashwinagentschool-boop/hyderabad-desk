@@ -1,0 +1,40 @@
+[Unit]
+Description=Hyderabad Desk - fetch and classify new Reddit posts
+Documentation=https://github.com/your-user/hyderabad-desk
+# Wait for real connectivity, not just a configured interface. A Pi that
+# boots faster than its wifi associates would otherwise fail every reboot.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+
+# Adjust these three lines if you cloned somewhere other than /home/pi.
+WorkingDirectory=/home/pi/hyderabad-desk/worker
+ExecStart=/home/pi/hyderabad-desk/worker/.venv/bin/python fetch_reddit.py
+
+# The run is short. If it wedges on a hung socket, kill it rather than let
+# it overlap the next timer firing.
+TimeoutStartSec=900
+
+# A network fetch failing is normal and already logged to fetch_logs; don't
+# spam the journal with restart loops.
+Restart=no
+
+# Modest hardening. The worker only needs outbound HTTPS and its own dir.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/hyderabad-desk/worker
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

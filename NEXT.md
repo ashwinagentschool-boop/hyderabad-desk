@@ -3,15 +3,27 @@
 What each adapter interface needs from the Supabase + Raspberry Pi backend.
 Work through it adapter by adapter — the UI does not change.
 
+## Status
+
+**Done (this milestone).** Reddit, leads, settings and status are live on
+Supabase, fed by the Pi worker in `worker/`. Their sections below are kept
+for reference and marked **✅ built** — read `src/adapters/supabase/` for the
+actual code and `DECISIONS.md` for where the build diverged from the plan
+below (the two biggest: classification replaced keyword matching, and the
+status adapter folds `fetch_logs` client-side instead of using a
+`fetch_logs_latest` view).
+
+**Still mock.** Projects, Twitter, News, Insta, Pad, Chat. Their sections are
+the plan for when you migrate them.
+
 ## How the swap works
 
-1. Create `src/adapters/supabase/` with one file per adapter, each implementing
-   the matching interface from `src/adapters/types.ts`.
-2. In `src/adapters/index.ts`, build a `liveAdapters` object and return it from
-   `selectAdapters()` when `dataMode === 'live'` (the fallback and its warning
-   come out at the same time).
-3. Set `VITE_DATA_MODE=live`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
-   in the Vercel project, then redeploy.
+1. Add a file to `src/adapters/supabase/` implementing the matching interface
+   from `src/adapters/types.ts` (the four live ones are there as a template).
+2. In `src/adapters/index.ts`, add it to the object `selectAdapters()` returns
+   in live mode. Selection is per adapter — the still-mock ones keep working.
+3. The three `VITE_` variables are already in place once the Reddit slice is
+   live; a newly-migrated adapter needs only its Supabase table.
 
 Nothing in `src/components/`, `src/tabs/` or `src/store.ts` needs editing. The
 store already treats every call as async and already handles loading, error and
@@ -46,41 +58,60 @@ retry for each slice.
 
 ---
 
-## 1. `RedditAdapter`
+## 1. `RedditAdapter` — ✅ built
 
 `listPending()` · `refresh()` · `setTriageState(id, state)`
+Live: `src/adapters/supabase/redditAdapter.ts`. Worker: `worker/`.
 
-**Table `reddit_posts`**
+**What shipped differs from the original plan in one big way:**
+classification replaced keyword matching. `matched_keywords` is gone; the
+worker sends every new post to Claude, which files it into a `category`, a
+one-sentence `summary`, a `lead_potential`, and any `areas` / `budget` /
+`property_type` it can extract. The card leads with the summary and the
+badge, not a list of matched words.
+
+**Table `reddit_posts`** (as built — see `supabase/schema.sql`)
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | uuid pk | |
-| `reddit_id` | text unique | dedupe key for the worker's upsert |
-| `username` | text | |
-| `snippet` | text | |
-| `subreddit` | text | |
+| `reddit_id` | text unique | dedupe key; checked **before** classification |
+| `username` | text | stored with the `u/` prefix |
+| `title` / `body` | text | the raw post, shown behind a disclosure |
+| `subreddit` | text | bare name, no `r/` |
 | `permalink` | text | |
-| `posted_at` | timestamptz | |
-| `matched_keywords` | text[] | |
-| `triage_state` | text | `pending` \| `saved` \| `ignored`, default `pending` |
+| `posted_at` / `fetched_at` | timestamptz | |
+| `category` | text (check) | the six `RedditCategory` values |
+| `summary` | text | the card's main line |
+| `lead_potential` | text (check) | `hot` \| `warm` \| `cold` \| `none` |
+| `areas` | text[] | pre-fills the lead form |
+| `budget` / `property_type` | text | |
+| `classified_at` | timestamptz | |
+| `triage_state` | text (check) | `pending` \| `saved` \| `ignored`, default `pending` |
 
-**Operations**
-- `listPending` — `select * where triage_state = 'pending' order by posted_at desc`.
-- `refresh` — the browser cannot scrape Reddit. Either (a) re-run `listPending`
-  and let the Pi's schedule do the fetching, or (b) `POST` to a trigger endpoint
-  on the Pi, wait, then re-select. Start with (a). Report a `SourceStatus` on
-  success only, so a failed run does not overwrite "last synced".
-- `setTriageState` — `update ... returning *`.
+**How it actually works**
+- `listPending` — `select ... where triage_state = 'pending' order by posted_at desc`.
+- `refresh` — a re-read, not a crawl. The browser can't scrape Reddit; the
+  Pi's timer owns fetching. It does **not** report a `SourceStatus` — only the
+  worker writes `fetch_logs`.
+- `setTriageState` — `update ... select single`.
+- **Worker does a plain `insert`, never an upsert** — an upsert could
+  overwrite `triage_state` on a saved/ignored post. Rows are new by
+  construction because dedupe runs first.
+- **Freshness** is a 60s poll while the tab is open, not realtime — see the
+  reasoning in `DECISIONS.md`. Realtime is still a clean future swap: the
+  shapes already match.
 
-**Index** `(triage_state, posted_at desc)`.
-**Worker** upserts on `reddit_id` so a re-crawl never resurrects a triaged post.
-**Realtime** worthwhile — the pending badge in the tab strip updates live.
-
-## 2. `ManualLeadsAdapter`
+## 2. `ManualLeadsAdapter` — ✅ built
 
 `list()` · `create()` · `update(id, patch)` · `delete(id)`
+Live: `src/adapters/supabase/manualLeadsAdapter.ts`.
 
 Owns the **entire** pipeline — manual entries and leads promoted from Reddit.
+Built as specified below. `updated_at` is bumped by a database trigger
+(`leads_set_updated_at`), not the client; `follow_up_date` is a bare date and
+is sliced to `YYYY-MM-DD` at the adapter boundary; optional fields map `null`
+to `undefined` on read and empty-string to `null` on write.
 
 **Table `leads`**
 
@@ -235,9 +266,28 @@ is down.
 **Latency.** The store shows a "Thinking…" bubble for the whole call and has no
 timeout. Add one (~30 s) in the adapter and reject with a readable message.
 
-## 9. `StatusAdapter`
+## 9. `StatusAdapter` — ✅ built (Reddit source only)
 
 `list()` · `report(status)`
+Live: `src/adapters/supabase/statusAdapter.ts`.
+
+Built, but as a **hybrid**: Reddit reads the Pi's real `fetch_logs`; the other
+four sources still read the mock status store, because their adapters are still
+mock. When a source moves to the worker, delete it from the adapter's
+`MOCK_SOURCES` list and it starts reading `fetch_logs`. Two divergences from
+the plan below: there is **no `fetch_logs_latest` view** (the adapter reads the
+newest 50 rows and folds to one per source client-side — `distinct on` isn't
+reachable through Postgrest), and the browser's `report()` is a **no-op for
+Reddit** (only the worker writes the heartbeat). The columns shipped as
+`items_fetched` + `items_classified` rather than a single `items_count`.
+
+## `SettingsAdapter` — ✅ built
+
+Live: `src/adapters/supabase/settingsAdapter.ts`. Section 10 below is the plan;
+what shipped uses a key/value `jsonb` table (one row per key), seeds all four
+keys in `schema.sql`, and keeps patch semantics via an upsert of only the keys
+the caller sent. `keywords` is seeded empty and has no UI — classification
+replaced it.
 
 **Table `fetch_logs`** — the Pi's heartbeat, and the reason this adapter exists.
 

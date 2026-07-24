@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Lead, LeadSource, LeadStatus } from '../adapters/types';
 import { SourceBadge, StatusSelect } from '../components/Badge';
 import { Icon } from '../components/Icon';
-import { useToast } from '../components/Toast';
+import { LeadModal } from '../components/LeadModal';
 import {
   Button,
   Card,
@@ -12,16 +12,11 @@ import {
   EmptyState,
   ErrorCard,
   ExternalLink,
-  Field,
   FilterChip,
   LoadingRows,
-  Modal,
   SearchField,
-  Select,
   TabHeader,
   TabShell,
-  TextArea,
-  TextField,
 } from '../components/ui';
 import {
   isDueToday,
@@ -268,196 +263,5 @@ function LeadCard({ lead, onEdit }: { lead: Lead; onEdit: () => void }) {
 
       <p className="text-faint text-[11.5px]">updated {relativeTime(lead.updatedAt)}</p>
     </Card>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * Add / edit modal
- * ------------------------------------------------------------------ */
-
-interface FormState {
-  name: string;
-  phone: string;
-  requirement: string;
-  budget: string;
-  area: string;
-  status: LeadStatus;
-  followUpDate: string;
-  notes: string;
-}
-
-function toForm(lead: Lead | null): FormState {
-  return {
-    name: lead?.name ?? '',
-    phone: lead?.phone ?? '',
-    requirement: lead?.requirement ?? '',
-    budget: lead?.budget ?? '',
-    area: lead?.area ?? '',
-    status: lead?.status ?? 'new',
-    followUpDate: lead?.followUpDate ?? '',
-    notes: lead?.notes ?? '',
-  };
-}
-
-/** Drop empty strings so optional fields stay genuinely absent. */
-function optional(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed === '' ? undefined : trimmed;
-}
-
-function LeadModal({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
-  const createLead = useStore((s) => s.createLead);
-  const updateLead = useStore((s) => s.updateLead);
-  const showToast = useToast((s) => s.show);
-
-  const [form, setForm] = useState<FormState>(() => toForm(lead));
-  const [touched, setTouched] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const nameError = form.name.trim() === '';
-  const requirementError = form.requirement.trim() === '';
-  const invalid = nameError || requirementError;
-
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
-
-  const submit = async () => {
-    setTouched(true);
-    if (invalid) return;
-    setSaving(true);
-    try {
-      const payload = {
-        name: form.name.trim(),
-        phone: optional(form.phone),
-        requirement: form.requirement.trim(),
-        budget: optional(form.budget),
-        area: optional(form.area),
-        status: form.status,
-        followUpDate: optional(form.followUpDate),
-        notes: optional(form.notes),
-      };
-      if (lead === null) {
-        await createLead({ source: 'manual', ...payload });
-        showToast('Lead added');
-      } else {
-        await updateLead(lead.id, payload);
-        showToast('Lead updated');
-      }
-      onClose();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      title={lead === null ? 'Add lead' : 'Edit lead'}
-      onClose={onClose}
-      footer={
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            className="flex-1"
-            onClick={() => void submit()}
-            busy={saving}
-          >
-            {lead === null ? 'Add lead' : 'Save changes'}
-          </Button>
-        </div>
-      }
-    >
-      <div className="grid gap-3.5">
-        <Field label="Name" required>
-          <TextField
-            value={form.name}
-            onChange={(e) => set('name', e.target.value)}
-            placeholder="Praveen Kumar"
-            autoFocus
-            aria-invalid={touched && nameError}
-          />
-          {touched && nameError ? (
-            <span className="mt-1 block text-[12px] text-[var(--c-err)]">
-              Name is required.
-            </span>
-          ) : null}
-        </Field>
-
-        <Field label="Phone">
-          <TextField
-            type="tel"
-            inputMode="tel"
-            value={form.phone}
-            onChange={(e) => set('phone', e.target.value)}
-            placeholder="+91 98490 11223"
-          />
-        </Field>
-
-        <Field label="Requirement" required>
-          <TextArea
-            rows={3}
-            value={form.requirement}
-            onChange={(e) => set('requirement', e.target.value)}
-            placeholder="3BHK, ready to move, near Gachibowli office"
-            aria-invalid={touched && requirementError}
-          />
-          {touched && requirementError ? (
-            <span className="mt-1 block text-[12px] text-[var(--c-err)]">
-              Requirement is required.
-            </span>
-          ) : null}
-        </Field>
-
-        <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field label="Budget">
-            <TextField
-              value={form.budget}
-              onChange={(e) => set('budget', e.target.value)}
-              placeholder="1.3 - 1.5 Cr"
-            />
-          </Field>
-          <Field label="Area">
-            <TextField
-              value={form.area}
-              onChange={(e) => set('area', e.target.value)}
-              placeholder="Gachibowli"
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field label="Status">
-            <Select
-              value={form.status}
-              onChange={(e) => set('status', e.target.value as LeadStatus)}
-            >
-              {STATUS_ORDER.map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABEL[status]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Follow-up date">
-            <TextField
-              type="date"
-              value={form.followUpDate}
-              onChange={(e) => set('followUpDate', e.target.value)}
-            />
-          </Field>
-        </div>
-
-        <Field label="Notes">
-          <TextArea
-            rows={3}
-            value={form.notes}
-            onChange={(e) => set('notes', e.target.value)}
-            placeholder="Wife wants east facing. Call after 7pm."
-          />
-        </Field>
-      </div>
-    </Modal>
   );
 }

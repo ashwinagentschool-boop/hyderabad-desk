@@ -21,6 +21,7 @@ import type {
   SourceStatus,
   Tweet,
 } from './adapters/types';
+import type { LeadFormValues } from './lib/leads';
 import { isTabId, type TabId } from './lib/tabs';
 
 /* ------------------------------------------------------------------ *
@@ -83,6 +84,8 @@ interface AppState {
 
   /* Explicit user-triggered syncs */
   refreshReddit: () => Promise<void>;
+  /** Background re-read of the Reddit queue. Never touches slice status. */
+  pollReddit: () => Promise<void>;
   syncProjects: () => Promise<void>;
   fetchTweets: () => Promise<void>;
   fetchNews: () => Promise<void>;
@@ -90,7 +93,7 @@ interface AppState {
 
   /* Mutations */
   triageRedditPost: (id: string, state: RedditPost['triageState']) => Promise<void>;
-  saveRedditPostAsLead: (post: RedditPost) => Promise<Lead>;
+  saveRedditPostAsLead: (post: RedditPost, values: LeadFormValues) => Promise<Lead>;
 
   createLead: (input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateLead: (id: string, patch: Partial<Omit<Lead, 'id' | 'createdAt'>>) => Promise<void>;
@@ -204,6 +207,30 @@ export const useStore = create<AppState>()(
           await get().loadStatuses(true);
         },
 
+        /**
+         * The Pi writes new posts on its own schedule, so the queue is
+         * re-read in the background while the Reddit tab is open. This
+         * deliberately never sets `loading` or `error`: a background poll
+         * must not flash a skeleton over a list being triaged, and a
+         * transient network blip must not replace it with a retry card.
+         * The explicit Refresh button still reports failures.
+         */
+        pollReddit: async () => {
+          if (get().reddit.status === 'loading') return;
+          try {
+            const items = await adapters.reddit.listPending();
+            if (get().reddit.status === 'loading') return;
+            set({ reddit: { items, status: 'ready' } });
+          } catch {
+            /* keep whatever is on screen */
+          }
+          try {
+            set({ statuses: { items: await adapters.status.list(), status: 'ready' } });
+          } catch {
+            /* same */
+          }
+        },
+
         syncProjects: async () => {
           set((s) => ({ projects: { ...s.projects, status: 'loading', error: undefined } }));
           try {
@@ -272,14 +299,14 @@ export const useStore = create<AppState>()(
           }));
         },
 
-        saveRedditPostAsLead: async (post) => {
+        saveRedditPostAsLead: async (post, values) => {
           // The Reddit tab promotes a post through the leads adapter, so the
-          // new lead shows up in Manual immediately.
+          // new lead shows up in Manual immediately. Everything the agent
+          // can edit comes in as `values`; provenance is set here so the
+          // form can never be used to fake a Reddit source.
           const lead = await adapters.leads.create({
+            ...values,
             source: 'reddit',
-            name: post.username,
-            requirement: post.snippet,
-            status: 'new',
             redditPermalink: post.permalink,
             subreddit: post.subreddit,
           });

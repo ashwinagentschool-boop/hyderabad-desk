@@ -1,3 +1,4 @@
+import { AccountMenu, AuthGate } from './components/Auth';
 import { StatusStrip, StatusToggle } from './components/StatusStrip';
 import { TabStrip } from './components/TabStrip';
 import { ToastHost } from './components/Toast';
@@ -25,6 +26,14 @@ const PANELS: Record<TabId, () => React.ReactElement> = {
 };
 
 export default function App() {
+  return (
+    <AuthGate>
+      <Desk />
+    </AuthGate>
+  );
+}
+
+function Desk() {
   const activeTab = useStore((s) => s.activeTab);
   const Panel = PANELS[activeTab];
 
@@ -42,15 +51,18 @@ export default function App() {
               <span className="text-[15px] font-semibold tracking-[-0.01em]">
                 Hyderabad Desk
               </span>
-              <span className="min-[960px]:hidden">
+              <span className="flex items-center gap-1 min-[960px]:hidden">
                 <StatusToggle />
+                {/* Renders nothing in mock mode. */}
+                <AccountMenu />
               </span>
             </div>
             <div className="min-w-0 flex-1">
               <TabStrip />
             </div>
-            <span className="hidden shrink-0 min-[960px]:block">
+            <span className="hidden shrink-0 items-center gap-1 min-[960px]:flex">
               <StatusToggle />
+              <AccountMenu />
             </span>
           </div>
         </div>

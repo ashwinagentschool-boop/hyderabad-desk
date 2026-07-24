@@ -1,0 +1,20 @@
+[Unit]
+Description=Run the Hyderabad Desk Reddit fetch every 2 hours
+
+[Timer]
+# Every two hours, seven minutes past. The offset keeps the Pi off the
+# top-of-hour stampede that every other cron job on the internet joins.
+OnCalendar=*-*-* 00/2:07:00
+
+# A Pi that was asleep or unplugged runs the missed job on next boot
+# instead of silently skipping a window.
+Persistent=true
+
+# Up to five minutes of jitter, so repeated runs don't hit Reddit on a
+# perfectly predictable schedule.
+RandomizedDelaySec=300
+
+Unit=reddit-fetch.service
+
+[Install]
+WantedBy=timers.target

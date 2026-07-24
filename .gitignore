@@ -48,3 +48,9 @@ Thumbs.db
 .agents/
 .claude/
 skills-lock.json
+
+# Python worker
+.venv/
+worker/.venv/
+__pycache__/
+*.pyc

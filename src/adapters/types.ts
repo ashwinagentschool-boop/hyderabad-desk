@@ -39,15 +39,42 @@ export interface Lead {
   updatedAt: string;
 }
 
+/**
+ * What the worker's LLM pass decided a post is. Keyword matching is gone —
+ * the classifier reads every new post and files it here instead.
+ */
+export type RedditCategory =
+  | 'buyer_lead'
+  | 'seller_lead'
+  | 'rental_lead'
+  | 'advice_question'
+  | 'market_discussion'
+  | 'other';
+
+/** How close this author is to being a client. 'none' means not a lead. */
+export type LeadPotential = 'hot' | 'warm' | 'cold' | 'none';
+
 export interface RedditPost {
   id: string;
   redditId: string;
   username: string;
-  snippet: string;
+  /** Reddit's own title. Secondary on the card, behind a disclosure. */
+  title: string;
+  /** Post body, often absent on link posts. */
+  body?: string;
+  /** The classifier's one-sentence read. This is the card's main text. */
+  summary: string;
+  /** Bare name, no "r/" prefix — the UI adds it. Matches the settings row. */
   subreddit: string;
   permalink: string;
   postedAt: string;
-  matchedKeywords: string[];
+  category: RedditCategory;
+  leadPotential: LeadPotential;
+  /** Hyderabad localities the classifier found. Pre-fills the lead form. */
+  areas: string[];
+  budget?: string;
+  propertyType?: string;
+  classifiedAt?: string;
   triageState: 'pending' | 'saved' | 'ignored';
 }
 

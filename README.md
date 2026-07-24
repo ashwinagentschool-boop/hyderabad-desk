@@ -6,10 +6,15 @@ news, and a rule-based assistant that answers from the agent's own data.
 
 **Live:** https://hyderabad-desk.vercel.app
 
-**This phase is frontend-only.** Every screen runs on mock adapters with
-`localStorage` persistence. No backend, no API keys, no environment variables.
-A Python worker on a Raspberry Pi plus Supabase arrives later and swaps in
-behind the same interfaces — see [NEXT.md](./NEXT.md).
+**The Reddit slice is live.** Four adapters — Reddit, leads, settings and the
+source heartbeat — run on Supabase, fed by a Python worker on a Raspberry Pi
+that fetches Reddit and classifies every post with the Claude API. The other
+four tabs (Projects, Twitter, News, Insta, Pad, Chat) are still on mock
+adapters. Selection is per adapter and driven by `VITE_DATA_MODE`; with it
+unset the whole app runs on mock exactly as the first phase did, which is what
+keeps the current production deploy working until the environment variables are
+added. See [worker/PI_SETUP.md](./worker/PI_SETUP.md) for the Pi, and
+[NEXT.md](./NEXT.md) for the tabs still to migrate.
 
 ## Run it
 
@@ -40,7 +45,7 @@ npm run build && npm run preview
 
 | Tab | What it does |
 | --- | --- |
-| **Reddit** | Triage queue of buying-intent posts. Save as a lead, ignore, or open on Reddit. Editable subreddit + keyword watchlist. |
+| **Reddit** | Triage queue of posts the worker classified with the Claude API. Each card leads with a one-sentence summary, a category chip and a lead-potential badge; filter by both. Save (opens a lead form pre-filled from the classifier), ignore, or open on Reddit. Editable subreddit watchlist the Pi obeys on its next run. |
 | **Manual** | The unified pipeline — every lead, manual or Reddit-sourced. Filter by source and status, search, add/edit, quick status change. Overdue follow-ups pin to the top on a coral card. |
 | **Projects** | Read-only inventory synced from the agent's sheet. Search plus area, budget-band and possession filters. |
 | **Twitter** | Posts from a watched handle list. Best-effort, clearly labelled as not a live timeline. |
@@ -61,13 +66,27 @@ interfaces in `src/adapters/types.ts`:
 src/
   adapters/
     types.ts          all entity + adapter interfaces (the backend contract)
-    index.ts          picks the adapter set from VITE_DATA_MODE
-    mock/             the only code allowed to touch localStorage
+    index.ts          picks each adapter from VITE_DATA_MODE (per adapter)
+    mock/             the only frontend code allowed to touch localStorage
+    supabase/         the live Reddit / leads / settings / status adapters
   components/         design-system primitives
   tabs/               one file per tab
   lib/                pure formatting helpers
+  auth.ts             Supabase Auth session state (live mode only)
   store.ts            Zustand store — the sole consumer of the adapter layer
+
+supabase/
+  schema.sql          idempotent schema, run in the SQL editor
+worker/               Python worker for the Pi (own README: PI_SETUP.md)
+  fetch_reddit.py     the entrypoint the systemd timer runs
+  lib/                classify.py (Claude) + db.py (supabase-py)
+  systemd/            oneshot service + 2-hourly timer
 ```
+
+Adapter selection is **per adapter**. In live mode the Reddit, leads,
+settings and status adapters come from `src/adapters/supabase/`; everything
+else stays mock. Live mode with missing or placeholder Supabase variables
+falls back to mock with a console warning rather than white-screening.
 
 Two rules keep the swap to a real backend mechanical:
 
@@ -85,6 +104,41 @@ Mock adapters behave like a real backend: fetch-style calls take 400–900 ms an
 fail about 5% of the time, so the loading and retry states are exercised in
 normal use. User-owned data (leads, pad, Instagram saves, settings) is never
 subject to simulated failure.
+
+## The backend (Reddit slice)
+
+A Raspberry Pi runs `worker/fetch_reddit.py` on a systemd timer every two
+hours. Each run:
+
+1. reads the watched subreddit list from the `settings` table (the agent
+   edits it in the app; the Pi obeys on the next run, no redeploy);
+2. fetches `/new.json` for each subreddit;
+3. **dedupes against the database before classifying**, so every post costs
+   exactly one Claude call in its lifetime;
+4. classifies the genuinely-new posts with Claude Haiku into a category, a
+   one-sentence summary, a lead-potential rating, and any areas / budget /
+   property type it can extract;
+5. inserts them (it never touches `triage_state` — triage is the browser's);
+6. writes one `fetch_logs` heartbeat row.
+
+The browser only reads what the worker wrote and writes back triage
+decisions. It never scrapes Reddit and never writes the heartbeat, so
+"synced 12m ago" always means the Pi actually ran. New posts appear without
+a manual refresh via a 60-second poll while the Reddit tab is open.
+
+Live mode is gated behind Supabase Auth (email + password). The single user
+is created by hand in the Supabase dashboard; there is no signup in the app.
+
+Full setup is in [worker/PI_SETUP.md](./worker/PI_SETUP.md); the schema is
+[supabase/schema.sql](./supabase/schema.sql).
+
+### The service_role key
+
+The worker authenticates with the Supabase `service_role` key, which
+bypasses row-level security. It lives only in `worker/.env` on the Pi. It
+must never appear in the frontend, in a `VITE_*` variable, or in the Vercel
+project — the browser uses the public `anon` key, and RLS is what protects
+the data.
 
 ## Deploying to Vercel
 
@@ -141,17 +195,26 @@ On the first `vercel` run, accept the detected settings:
 
 ### Environment variables
 
-**None are required, now or for this deploy.** Leave `VITE_DATA_MODE` unset —
-unset means `mock`, which is what this phase ships.
+Three, all public and `VITE_`-prefixed. Leave them unset and the app runs on
+mock adapters, which is what the current production deploy does.
 
-When the backend lands, going live is configuration only:
+| Variable | Value |
+| --- | --- |
+| `VITE_DATA_MODE` | `live` to use Supabase for the Reddit slice; unset (or anything else) means mock |
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → Data API → Project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API Keys → anon / publishable |
 
-1. In the Vercel project, add `VITE_DATA_MODE=live` plus the Supabase variables
-   (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
-2. Redeploy.
+To go live: add all three in the Vercel project (Settings → Environment
+Variables) and redeploy. No code changes — `src/adapters/index.ts` selects
+each adapter from `VITE_DATA_MODE`, falling back to mock if the Supabase
+variables are missing.
 
-No code changes — `src/adapters/index.ts` selects the adapter set from that
-flag. The Supabase implementations are specified in [NEXT.md](./NEXT.md).
+> **Never** add `SUPABASE_SERVICE_ROLE_KEY` to Vercel or any `VITE_`
+> variable. It bypasses row-level security and belongs only on the Pi.
+
+Locally, copy `.env.example` to `.env.local` and fill in the same three
+values. Both real env files (`.env.local`, `worker/.env`) are gitignored;
+their `.example` counterparts are tracked.
 
 ## Phone home screen
 
